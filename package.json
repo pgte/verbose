@@ -1,0 +1,24 @@
+{
+  "name": "boxed-emitter",
+  "description": "Namespacing events",
+  "version": "0.1.5",
+  "author" : "Pedro Teixeira <pedro.teixeira@gmail.com>",
+  "contributors" : [
+    {"name": "Pedro Teixeira"}
+  ],
+ "repository" : {
+    "type" : "git",
+   "url" : "http://github.com/pgte/boxed-emitter.git"
+  },
+  "bugs" : {
+    "url" : "http://github.com/pgte/boxed-emitter/issues"
+  },
+  "engines" : ["node >= 0.8.1"],
+  "main" : "./index.js",
+  "dependencies": {
+  },
+  "devDependencies": {
+    "tap": "0.3.x"
+  },
+  "scripts": { "test": "node node_modules/tap/bin/tap.js tests/index.js" }
+}
