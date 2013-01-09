@@ -1,24 +1,28 @@
 {
-  "name": "boxed-emitter",
-  "description": "Namespacing events",
-  "version": "0.1.5",
+  "name": "remote-channel",
+  "description": "Remote peer-to-peer event synchronization",
+  "version": "0.1.0",
   "author" : "Pedro Teixeira <pedro.teixeira@gmail.com>",
   "contributors" : [
     {"name": "Pedro Teixeira"}
   ],
  "repository" : {
     "type" : "git",
-   "url" : "http://github.com/pgte/boxed-emitter.git"
+   "url" : "http://github.com/pgte/remote-channel.git"
   },
   "bugs" : {
-    "url" : "http://github.com/pgte/boxed-emitter/issues"
+    "url" : "http://github.com/pgte/remote-channel/issues"
   },
   "engines" : ["node >= 0.8.1"],
   "main" : "./index.js",
   "dependencies": {
+    "reconnect": "*",
+    "duplex-emitter": "*",
+    "node-uuid": "*"
   },
   "devDependencies": {
     "tap": "0.3.x"
   },
-  "scripts": { "test": "node node_modules/tap/bin/tap.js tests/index.js" }
+  "scripts": { "test": "node node_modules/tap/bin/tap.js tests/index.js" },
+  "tags": ["remote", "event", "emitter", "synchronization", "peer to peer"]
 }
