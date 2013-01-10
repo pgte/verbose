@@ -18,11 +18,13 @@
   "dependencies": {
     "reconnect": "*",
     "duplex-emitter": "*",
-    "node-uuid": "*"
+    "node-uuid": "*",
+    "propagate": "*",
+    "colors": "*"
   },
   "devDependencies": {
     "tap": "0.3.x"
   },
-  "scripts": { "test": "node node_modules/tap/bin/tap.js tests/index.js" },
+  "scripts": { "test": "node node_modules/tap/bin/tap.js tests/peer_stream.js tests/reconnect.js tests/index.js" },
   "tags": ["remote", "event", "emitter", "synchronization", "peer to peer"]
 }
