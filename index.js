@@ -5,6 +5,7 @@ var EventEmitter = require('events').EventEmitter;
 var server = require('./server');
 var Options = require('./options');
 var Reconnect = require('./reconnect');
+var PeerStream = require('./peer_stream');
 
 function RemoteChannel(options) {
   /// Closure vars
@@ -14,14 +15,17 @@ function RemoteChannel(options) {
   var channel = new EventEmitter();
   var messages = [];
 
+  
   // Options
   
   options = Options(options);
 
+  
   /// Logging
   
   var log = options.log;
 
+  
   /// Connect
 
   function connect(port, host, callback) {
@@ -35,7 +39,19 @@ function RemoteChannel(options) {
       }
     }
 
-    var peer = Reconnect(port, host, options, channel, callback);
+    var timeout = setTimeout(function() {
+      var error = new Error('Timeout connecting to host ' + host + ', port ' + port);
+      if (callback)
+        return callback(error);
+      else publicEmitter.emit('error', error);
+    }, options.timeout);
+
+    var peer = Reconnect(port, host, options, channel);
+    peer.on('initiated', function() {
+      log('initiated');
+      clearTimeout(timeout);
+      if (callback) return callback;
+    });
 
   }
 
@@ -49,12 +65,13 @@ function RemoteChannel(options) {
       callback = host;
       host = undefined;
     }
-    var s = server.create().listen(port, host);
+    var s = server.create()
+    s.listen(port, host);
     s.incrementUsers();
 
     s.on('connection', function(stream) {
       log('server connection');
-      var s = Peer(stream, options, channel);
+      var s = PeerStream(stream, options, channel);
       s.init(function(err) {
         if (err) {
           console.error(err);
@@ -70,7 +87,11 @@ function RemoteChannel(options) {
     });
 
     s.once('listening', function() {
-      log('listening');
+      log('listening to port', port);
+    });
+
+    s.once('close', function() {
+      log('server closed');
     });
 
     if (callback) s.once('listening', callback);

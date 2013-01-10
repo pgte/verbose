@@ -1,100 +1,180 @@
 var duplexEmitter = require('duplex-emitter');
-var EventEmitter = require('events').EventEmitter;
+var reconnect = require('reconnect');
+var Stream = require('stream');
+var propagate = require('propagate');
+var domain = require('domain');
+var slice = Array.prototype.slice;
 
-function Stream(stream, options, emitter) {
-  var remoteEmitter = duplexEmitter(stream);
-  var publicEmitter = new EventEmitter();
+exports =
+module.exports =
+function PeerStream(options) {
+  var log = options.log || function() {};
+  
+  var s = new Stream();
+  s.writable = true;
+  s.readable = true;
+
+  var remoteReconnect;
+  var remoteEmitter;
   var queue = [];
   var ended = false;
+  var initiated = false;
 
-  function flush() {
-    if (ended) return;
-    if (queue.length) {
-      flushing = true;
-      var action = queue.splice(0, 1)[0];
-      var method = action[0];
-      var args = action[1];
-      if (! Array.isArray(args)) args = [args];
-      
-      args.push(flush); // callback function
-      method.apply(this, args);
-    }
-    
+
+  /// Queue
+
+  function enqueue() {
+    var args = slice.call(arguments);
+    if (args.length == 1) args.push([]);
+    queue.push(args);
   }
 
-  function init(callback) {
+  function flush(err) {
+    if (err) return s.emit('error', err);
+    if (queue.length) {
+      var action = queue[0];
+      var method = action[0];
+      var args = action[1];
+      
+      // Drop this if stream is not active
+      if (method == write && (ended || ! initiated)) {
+        return;
+      }
 
+      if (! Array.isArray(args)) args = [args];
+      queue.splice(0, 1);
+      args.push(flush); // callback function
+      method.apply(this, args);
+    } else {
+      s.emit('drain');
+    }
+  }
+
+
+  /// New Stream handler
+
+  function handleStream(_stream) {
+    remoteStream = _stream;
+    remoteEmitter = duplexEmitter(remoteStream);
+    handshake(function(err) {
+      if (err) return s.emit('error', err);
+      init();
+      process.nextTick(flush);
+    });
+
+    var d = domain.create();
+    d.add(_stream);
+    d.on('error', function(err) {
+      try {
+        _stream.end();
+      } catch(err) {
+        s.emit('error', err);
+      }
+      if (err.code != 'EPIPE') {
+        s.emit('error', err);
+      }
+    });
+
+  }
+
+  
+  /// Connect
+  
+  s.connect =
+  function connect(port, host, callback) {
+    remoteReconnect = reconnect(handleStream).connect(port, host);
+    propagate(remoteReconnect, s);
+    if (callback) remoteReconnect.once('connect', callback);
+    return s;
+  };
+
+
+  /// Handshake
+
+  function handshake(done) {
     var timeout = setTimeout(function() {
-      callback(new Error(
+      done(new Error(
         'timeout waiting for channel handshake. Waited for ' + options.timeout + ' ms'));
     }, options.timeout);
 
     remoteEmitter.once('channel', function(channel) {
       clearTimeout(timeout);
       if (channel != options.channel) {
-        return callback(
+        return done(
           new Error(
-            'wrong channel name:' + channel + '. Expected ' + options.channel));
+            'wrong channel name: ' + channel + '. Expected ' + options.channel));
       }
-      return callback();
+      s.emit('initiated');
+      initiated = true;
+      done();
     });
 
-    // Send handshake
-    remoteEmitter.emit('channel', options.channel);
+    remoteEmitter.on('error', function(err) {
+      s.emit('error', err);
+    });
 
-    // Listen for remote messages
-    function remoteMessage(msg, meta) {
-      if (meta.nodes.indexOf(options.node_id) === -1) {
+    remoteEmitter.emit('channel', options.channel);
+  }
+
+
+  /// Init
+
+  function init() {
+    function onRemoteMessage(msg, meta) {
+      if (~ meta.nodes.indexOf(options.node_id)) {
         meta.nodes.push(options.node_id);
-        publicEmitter.emit('message', msg);
+        s.emit('data', msg);
       }
     }
-
-    remoteEmitter.on('message', remoteMessage);
-
-    // Channel emitter messages to queueSend()
-    emitter.on('message', queueSend);
-
-    // Unregister event listeners once stream ends
-    // Preventing leaks
-    stream.once('end', function() {
-      remoteEmitter.removeListener('message', remoteMessage);
-      emitter.removeListener('message', send);
-      publicEmitter.emit('end');
+    remoteEmitter.on('message', onRemoteMessage);
+    
+    // Remove all listeners once the stream gets disconnected
+    s.once('disconnect', function() {
+      initiated = false;
+      remoteEmitter.removeListener('message', onRemoteMessage);
     });
   }
 
-  function send(msg, done) {
+
+  /// Write
+
+  function write(msg, done) {
     var meta = {
       nodes: [options.node_id]
     };
     remoteEmitter.emit('message', msg, meta);
     done();
+  };
+
+  s.write =
+  function enqueueWrite(msg) {
+    enqueue(write, msg);
+    process.nextTick(flush);
+    return false;
+  };
+
+
+  /// End
+
+  function end(done) {
+    if (ended) return done();
+    ended = true;
+    s.writable = false;
+    if (remoteReconnect) {
+      remoteReconnect.reconnect = false;
+      remoteReconnect.disconnect();
+    }
+    done();
   }
 
-  function queueSend(msg) {
-    queue.push([send, msg]);
-    flush();
-  }
+  s.end =
+  function enqueueEnd(msg) {
+    if (msg) enqueueWrite(msg);
+    enqueue(end);
+    process.nextTick(flush);
+    return false;
+  };
 
-  function end(callback) {
-    stream.end();
-    stream.once('end', function() {
-      ended = true;
-      callback();
-    });
-  }
 
-  function queueEnd() {
-    queue.push([end]);
-    flush();
-  }
-
-  publicEmitter.send = queueSend;
-  publicEmitter.end = queueEnd;
-  publicEmitter.init = init;
-
-  return publicEmitter;
-}
-
-module.exports = Stream;
+  return s;
+};

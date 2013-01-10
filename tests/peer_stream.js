@@ -1,115 +1,149 @@
 var test = require('tap').test;
 var PeerStream = require('../peer_stream');
-var MockStream = require('./mock_stream');
-var EventEmitter = require('events').EventEmitter;
+var MockServer = require('./mock_server');
+var helpers = require('./helpers');
+var async = require('async');
+var es = require('event-stream');
+var fs = require('fs');
 
 var options = {
   node_id: 'NODE_ID_1',
   channel: 'CHANNEL_1',
-  log:     function() {}
+  log:     function() {},
+  timeout: 5e3
 };
 
 test('handshakes', function(t) {
-  t.plan(2);
+  t.plan(3);
   
-  var s = MockStream();
-  s.on('write', function(b) {
-    console.log('wrote', b);
-  });
-  var channel = new EventEmitter();
-  var peer = PeerStream(s, options, channel);
-  peer.init(function(err) {
-    t.type(err, 'undefined');
-    t.equal(s.buf, '[\n'+
-      '["channel","CHANNEL_1"]');
-  });
-  s.data('[\n'+
-      '["channel","CHANNEL_1"]');
+  var port = helpers.randomPort();
+  var server = MockServer(options);
+  var s = PeerStream(options);
+  
+  s.connect(port)
+  
+  async.parallel([
+    
+    function(done) {
+      s.once('connect', function() {
+        t.ok(true, 'got connection');
+        done();
+      });
+    },
+
+    function(done) {
+      s.once('initiated', function() {
+        t.ok(true, 'initiated');
+        done();
+      });
+    }
+
+  ], done);
+  
+  server.listen(port);
+
+  function done(err) {
+    t.ok(! err);
+    s.end();
+    server.close();    
+  }
 });
 
 test('errors on wrong channel', function(t) {
-  t.plan(1);
+  t.plan(2);
   
-  var s = MockStream();
-  s.on('write', function(b) {
-    console.log('wrote', b);
+  var serverOptions = helpers.clone(options);
+  serverOptions.channel = 'WRONG_CHANNEL';
+  var server = MockServer(serverOptions);
+
+  var port = helpers.randomPort();
+  var s = PeerStream(options);
+  
+  s.connect(port)
+  
+  s.once('error', function(err) {
+    t.ok(err);
+    t.equal(err.message, 'wrong channel name: WRONG_CHANNEL. Expected CHANNEL_1');
+    s.end();
+    server.close();    
   });
-  var channel = new EventEmitter();
-  var peer = PeerStream(s, options, channel);
-  peer.init(function(err) {
-    t.type(err, Error);
-  });
-  s.data('[\n'+
-      '["channel","CHANNEL_2"]');
+
+  server.listen(port);
 });
 
 test('sends message', function(t) {
-  t.plan(2);
+  t.plan(1);
   
-  var s = MockStream();
-  var channel = new EventEmitter();
-  var peer = PeerStream(s, options, channel);
-  peer.init(function(err) {
-    t.type(err, 'undefined');
-  });
-  channel.emit('message', 'MESSAGE_1')
+  var server = MockServer(options);
+
+  var port = helpers.randomPort();
+  var s = PeerStream(options);
   
-  process.nextTick(function() {
-    t.equal(s.buf, '[\n' +
-      '["channel","CHANNEL_1"]\n' +
-      ',\n' +
-      '["message","MESSAGE_1",{"nodes":["NODE_ID_1"]}]');
-  });
-  s.data('[\n'+
-      '["channel","CHANNEL_1"]');
+  s.write('this is a message');
+  s.end();
+  s.connect(port)
+  server.listen(port);
+
+  // Give some time for this message
+  // to reach the server
+  setTimeout(function() {
+    t.deepEqual(server.messages, ['this is a message']);
+    server.close();    
+  }, 500);
 
 });
 
-test('end gets queued and doesnot execute immediately', function(t) {
-  t.plan(2);
-  
-  var s = MockStream();
-  var channel = new EventEmitter();
-  var peer = PeerStream(s, options, channel);
-  peer.init(function(err) {
-    t.type(err, 'undefined');
-  });
-  channel.emit('message', 'MESSAGE_1')
-  channel.emit('end');
-  
-  process.nextTick(function() {
-    t.equal(s.buf, '[\n' +
-      '["channel","CHANNEL_1"]\n' +
-      ',\n' +
-      '["message","MESSAGE_1",{"nodes":["NODE_ID_1"]}]');
-  });
-  s.data('[\n'+
-      '["channel","CHANNEL_1"]');
+test('supports pipe', function(t) {
+  t.plan(1);
+  var server = MockServer(options);
+
+  var port = helpers.randomPort();
+  var s = PeerStream(options);
+
+  s.connect(port);
+  es.pipeline(
+    fs.createReadStream(__dirname + '/events.txt'),
+    es.split()
+  ).pipe(s);
+
+  server.listen(port);
+
+  // Give some time for this message
+  // to reach the server
+  setTimeout(function() {
+    t.deepEqual(server.messages, [
+      'event one',
+      'event two',
+      'event three']);
+    server.close();    
+  }, 500);
 
 });
 
-test('does not send message after stream end', function(t) {
-  t.plan(2);
+test('reconnects', function(t) {
+  t.plan(1);
+  var server = MockServer(options);
+
+  var port = helpers.randomPort();
+  var s = PeerStream(options);
+
+  server.listen(port);
+  s.connect(port);
   
-  var s = MockStream();
-  var channel = new EventEmitter();
-  var peer = PeerStream(s, options, channel);
-  peer.init(function(err) {
-    t.type(err, 'undefined');
-  });
-  channel.emit('message', 'MESSAGE_1')
-  
-  process.nextTick(function() {
-    peer.end();
-    channel.emit('message', 'MESSAGE_2');
-    process.nextTick(function() {
-      t.equal(s.buf, '[\n' +
-        '["channel","CHANNEL_1"]\n' +
-        ',\n' +
-        '["message","MESSAGE_1",{"nodes":["NODE_ID_1"]}]');
+  s.once('connect', function() {
+    server.forceClose();
+    server.once('close', function() {
+      s.write('one message');
+      s.end();
+      server.listen(port);
+
+      // Give some time for this message
+      // to reach the server
+      setTimeout(function() {
+        t.deepEqual(server.messages, [ 'one message' ]);
+        server.close();
+      }, 500);
     });
   });
-  s.data('[\n'+
-      '["channel","CHANNEL_1"]');
 
 });

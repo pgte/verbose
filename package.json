@@ -23,7 +23,9 @@
     "colors": "*"
   },
   "devDependencies": {
-    "tap": "0.3.x"
+    "tap": "0.3.x",
+    "async": "*",
+    "event-stream": "*"
   },
   "scripts": { "test": "node node_modules/tap/bin/tap.js tests/peer_stream.js tests/reconnect.js tests/index.js" },
   "tags": ["remote", "event", "emitter", "synchronization", "peer to peer"]
