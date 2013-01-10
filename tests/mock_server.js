@@ -20,6 +20,12 @@ function MockServer(options) {
       server.messages.push(m);
     });
 
+    if (server.send) {
+      server.send.forEach(function(msg) {
+        remoteEmitter.emit('message', msg);
+      });
+    }
+
   });
 
   server.forceClose = function() {

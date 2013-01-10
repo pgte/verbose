@@ -13,6 +13,7 @@ var options = {
   timeout: 5e3
 };
 
+
 test('handshakes', function(t) {
   t.plan(3);
   
@@ -122,6 +123,7 @@ test('supports pipe', function(t) {
 
 test('reconnects', function(t) {
   t.plan(1);
+
   var server = MockServer(options);
 
   var port = helpers.randomPort();
@@ -145,5 +147,34 @@ test('reconnects', function(t) {
       }, 500);
     });
   });
+
+});
+
+
+test('emits data on server message', function(t) {
+  t.plan(1);
+
+  var server = MockServer(options);
+
+  var port = helpers.randomPort();
+  var s = PeerStream(options);
+
+  var collected = [];
+  s.on('data', function(d) {
+    collected.push(d);
+    if (collected.length == 2) {
+      t.deepEqual(collected, ['message 1', 'message 2']);
+      s.end();
+      server.close();      
+    }
+  });
+  s.connect(port);
+
+  server.send = [
+    'message 1',
+    'message 2'
+  ];
+
+  server.listen(port);
 
 });

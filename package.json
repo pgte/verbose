@@ -1,5 +1,5 @@
 {
-  "name": "remote-channel",
+  "name": "emitter-node",
   "description": "Remote peer-to-peer event synchronization",
   "version": "0.1.0",
   "author" : "Pedro Teixeira <pedro.teixeira@gmail.com>",
@@ -8,25 +8,27 @@
   ],
  "repository" : {
     "type" : "git",
-   "url" : "http://github.com/pgte/remote-channel.git"
+   "url" : "http://github.com/pgte/emitter-node.git"
   },
   "bugs" : {
-    "url" : "http://github.com/pgte/remote-channel/issues"
+    "url" : "http://github.com/pgte/emitter-node/issues"
   },
   "engines" : ["node >= 0.8.1"],
-  "main" : "./index.js",
+  "main" : "./node.js",
   "dependencies": {
     "reconnect": "*",
     "duplex-emitter": "*",
     "node-uuid": "*",
     "propagate": "*",
-    "colors": "*"
+    "colors": "*",
+    "duplexer": "*",
+    "through": "*"
   },
   "devDependencies": {
     "tap": "0.3.x",
     "async": "*",
     "event-stream": "*"
   },
-  "scripts": { "test": "node node_modules/tap/bin/tap.js tests/peer_stream.js tests/reconnect.js tests/index.js" },
+  "scripts": { "test": "node node_modules/tap/bin/tap.js tests/peer_stream.js tests/node.js" },
   "tags": ["remote", "event", "emitter", "synchronization", "peer to peer"]
 }

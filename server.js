@@ -8,12 +8,7 @@ function incrementUsers() {
 
 function decrementUsersAndClose(callback) {
   users --;
-  if (! users) {
-    server.close();
-    server.once('close', callback);
-  } else {
-    callback();
-  }
+  if (! users) server.close();
 }
 
 function create(port, host) {

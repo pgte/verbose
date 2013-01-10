@@ -53,6 +53,8 @@ function PeerStream(options) {
 
   /// New Stream handler
 
+  var handleStream =
+  s.handleStream =
   function handleStream(_stream) {
     remoteStream = _stream;
     remoteEmitter = duplexEmitter(remoteStream);
@@ -121,7 +123,8 @@ function PeerStream(options) {
 
   function init() {
     function onRemoteMessage(msg, meta) {
-      if (~ meta.nodes.indexOf(options.node_id)) {
+      if (! meta) meta = { nodes: [] };
+      if (meta.nodes.indexOf(options.node_id) == -1) {
         meta.nodes.push(options.node_id);
         s.emit('data', msg);
       }

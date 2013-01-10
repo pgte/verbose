@@ -1,3 +1,4 @@
+require('colors')
 var uuid = require('node-uuid');
 var slice = Array.prototype.slice;
 
