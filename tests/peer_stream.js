@@ -178,3 +178,11 @@ test('emits data on server message', function(t) {
   server.listen(port);
 
 });
+
+// test('synchronizes missing messages')
+
+// test('sends missing messages after reconnect')
+
+// test('pings')
+
+// test('spits out stream stats')
