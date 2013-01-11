@@ -20,8 +20,8 @@ function PeerStream(options) {
   var remoteEmitter;
   var remoteStream;
   var messages = Messages({
-    maxRetention: options.bufferMax,
-    timeout: options.bufferTimeout
+    maxMessages: options.bufferMax,
+    timeout:     options.bufferTimeout
   });
   var queue = [];
   var ended = false;
