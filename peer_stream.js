@@ -114,6 +114,7 @@ function PeerStream(options) {
     while(m = messages.next()) write(m.message, m.id, m.meta);
   }
 
+
   /// Handshake
 
   function handshake(done) {
@@ -152,21 +153,17 @@ function PeerStream(options) {
     if (meta.nodes.indexOf(options.node_id) == -1) {
       meta.nodes.push(options.node_id);
       lastMessageId = meta.id;
-      acknowledge(lastMessageId);
       s.emit('data', msg);
     }
-  }
-
-  /// Acknowledge
-
-  function acknowledge(id, done) {
-    remoteEmitter.emit('ack', id);
   }
 
   function onRemoteAcknowledge(id) {
     messages.acknowledge(id);
     s.emit('acknowledge', id);
   }
+
+
+  /// Buffer length
 
   s.bufferLength =
   function bufferLength() {
@@ -179,11 +176,34 @@ function PeerStream(options) {
     remoteEmitter.on('message', onRemoteMessage);
     remoteEmitter.on('ack', onRemoteAcknowledge);
     
+    // Send Acknowledge Interval
+    function acknowledge() {
+      if (lastMessageId) remoteEmitter.emit('ack', lastMessageId);
+    }
+    var ackInterval = setInterval(acknowledge, options.acknowledgeInterval);
+
+
+    //  Acknowledge timeout
+    var ackTimeout;
+    function resetAcknowledgeTimeout() {
+      if (ackTimeout) clearTimeout(ackTimeout);
+      
+      ackTimeout = setTimeout(function() {
+        s.emit('timeout');
+        if (remoteStream) remoteStream.destroy();
+      }, options.timeout);
+    }
+    s.on('acknowledge', resetAcknowledgeTimeout);
+    resetAcknowledgeTimeout();
+
     // Remove all listeners once the stream gets disconnected
     s.once('disconnect', function() {
       initiated = false;
       remoteEmitter.removeListener('message', onRemoteMessage);
       remoteEmitter.removeListener('ack', onRemoteAcknowledge);
+      s.removeListener('acknowledge', resetAcknowledgeTimeout);
+      clearInterval(ackInterval);
+      if (ackTimeout) clearTimeout(ackTimeout);
     });
   }
 
@@ -225,6 +245,7 @@ function PeerStream(options) {
     s.writable = false;
     messages.end();
     removeListeners();
+    s.emit('end');
     if (done) done();
   }
 

@@ -10,7 +10,8 @@ var options = {
   node_id: 'NODE_ID_1',
   channel: 'CHANNEL_1',
   log:     function() {},
-  timeout: 5e3
+  timeout: 500,
+  acknowledgeInterval: 100
 };
 
 
@@ -180,7 +181,7 @@ test('emits data on server message', function(t) {
 });
 
 test('acknowledges message and removes from buffer', function(t) {
-  t.plan(2);
+  t.plan(3);
 
   var server = MockServer(options);
 
@@ -188,7 +189,8 @@ test('acknowledges message and removes from buffer', function(t) {
   var s = PeerStream(options);
 
   setTimeout(function() {
-    t.deepEqual(server.acknowledges, ['abc', 'def']);
+    t.ok(server.acknowledges.length > 0, 'server got acknowledges');
+    t.ok(server.acknowledges.indexOf('def') >= 0, 'server got acknowledge for last msg');
     t.equal(s.bufferLength(), 0);
     s.end();
     server.close();
@@ -307,8 +309,37 @@ test('synchronizes missing messages', function(t) {
   }, 500);
 });
 
-// test('sends acknowledges recurrently, not on every message')
+test('reconnects on timeout', function(t) {
+  t.plan(2);
 
-// test('pings')
+  var server = MockServer(options);
+  var port = helpers.randomPort();
+  var s = PeerStream(options);
+
+  server.listen(port);
+
+  server.send = [
+    ['message 1', {id: 'qwe', nodes: ['a']}],
+    ['message 2', {id: 'rty', nodes: ['a']}]
+  ];
+
+  s.connect(port);
+  var collected = [];
+  s.on('data', function(d) {
+    collected.push(d);
+    server.send = [];
+    if (collected.length == 2) {
+      s.once('timeout', function() {
+        t.ok(true, 'got timeout');
+        s.once('initiated', function() {
+          t.ok('ended', true);
+          s.end();
+          server.close();
+        });
+      });
+    }
+  });
+
+});
 
 // test('spits out stream stats')

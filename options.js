@@ -10,7 +10,8 @@ var defaults =
 {
   timeout : 10e3,
   bufferTimeout: 60 * 60 * 1e3 // 1 hour
-  bufferMax: 1000
+  bufferMax: 1000,
+  acknowledgeInterval: 1e3
 };
 
 module.exports =
