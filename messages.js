@@ -1,6 +1,6 @@
 var defaultOptions = {
-  maxRetention: 1000,
-  timeout:       60 * 60 * 1e3 // 1 hour
+  maxMessages:  1000,
+  timeout:      60 * 60 * 1e3 // 1 hour
 };
 
 module.exports =
@@ -26,6 +26,11 @@ function create(options) {
   function push(message, id, meta) {
     messages[id] = { message: message, id: id, meta: meta, expires: Date.now() + options.timeout };
     messageIds.push(id);
+    if (messageIds.length > options.maxMessages) {
+      var mId = messageIds.splice(0, 1)[0];
+      delete messages[mId];
+      if (currentIndex > 0) currentIndex --;
+    }
     scheduleExpiration();
   };
 

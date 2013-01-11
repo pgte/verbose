@@ -43,5 +43,17 @@ test('buffer timeout', function(t) {
     t.equal(m.length(), 0);
     m.end();
     t.end();
-  }, 10);
+  }, 20);
+});
+
+test('respects max messages', function(t) {
+  var m = Messages({maxMessages: 2});
+  m.push('message 1', 'id1', 'meta1');
+  m.push('message 2', 'id2', 'meta2');
+  m.push('message 3', 'id3', 'meta3');
+  m.push('message 4', 'id4', 'meta4');
+  t.equal(m.length(), 2);
+  t.similar(m.next(), {message: 'message 3', id: 'id3', meta: 'meta3'});
+  m.end();
+  t.end();
 });
