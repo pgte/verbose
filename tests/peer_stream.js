@@ -230,6 +230,37 @@ test('emits acknowledges', function(t) {
   server.listen(port);
 });
 
+
+test('buffering messages time out', function(t) {
+  t.plan(2);
+  
+  var opts = helpers.clone(options);
+  
+  opts.bufferTimeout = 10;
+  
+  var server = MockServer(opts);
+  server.acknowledge = false;
+  var port = helpers.randomPort();
+  var s = PeerStream(opts);
+
+  // safeguard to ensure the server is not acknowledging
+  s.on('acknowledge', helpers.shouldNot('should not acknowledge'));
+
+  s.connect(port);
+  s.write('abc');
+  s.write('def');
+
+  t.equal(s.bufferLength(), 2);
+
+  setTimeout(function() {
+    console.log('hey');
+    t.equal(s.bufferLength(), 0);
+    s.end();
+    server.close();
+  }, 500);
+
+  server.listen(port)
+});
 // test('synchronizes missing messages')
 
 // test('sends missing messages after reconnect')

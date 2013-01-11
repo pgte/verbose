@@ -4,6 +4,7 @@ var duplexEmitter = require('duplex-emitter');
 module.exports =
 function MockServer(options) {
   var server = net.createServer();
+  server.acknowledge = true;
   server.bufs = '';
   server.messages = [];
   server.acknowledges = [];
@@ -19,7 +20,7 @@ function MockServer(options) {
     remoteEmitter.emit('channel', options.channel);
     
     remoteEmitter.on('message', function(m, meta) {
-      remoteEmitter.emit('ack', meta.id);
+      if (server.acknowledge) remoteEmitter.emit('ack', meta.id);
       server.messages.push(m);
     });
 

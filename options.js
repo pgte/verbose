@@ -8,7 +8,9 @@ function clone(o) {
 
 var defaults =
 {
-  timeout : 10e3
+  timeout : 10e3,
+  bufferTimeout: 60 * 60 * 1e3 // 1 hour
+  bufferMax: 1000
 };
 
 module.exports =

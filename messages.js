@@ -1,6 +1,6 @@
 var defaultOptions = {
   maxRetention: 1000,
-  maxAge:       60 * 60 * 1e3 // 1 hour
+  timeout:       60 * 60 * 1e3 // 1 hour
 };
 
 module.exports =
@@ -24,8 +24,9 @@ function create(options) {
 
   m.push =
   function push(message, id, meta) {
-    messages[id] = { message: message, id: id, meta: meta };
+    messages[id] = { message: message, id: id, meta: meta, expires: Date.now() + options.timeout };
     messageIds.push(id);
+    scheduleExpiration();
   };
 
   m.next =
@@ -34,6 +35,7 @@ function create(options) {
       var id = messageIds.splice(0, 1)[0];
       var m = messages[id];
       currentIndex ++;
+      scheduleExpiration();
       return m;
     }
   };
@@ -51,8 +53,49 @@ function create(options) {
       delete messages[mId];
       if (mId == id) break;
     }
+    scheduleExpiration();
     currentIndex = 0;
   };
+
+  
+  /// Expiration
+
+  var timeout;
+  function scheduleExpiration() {
+    if (timeout) clearTimeout(timeout);
+    timeout = undefined;
+    if (messageIds.length) {
+      var now = Date.now();
+      var mId = messageIds[0];
+      var expires = messages[mId].expires;
+      timeout = setTimeout(expire, expires - now);
+    }
+  }
+
+  function expire() {
+    var now = Date.now();
+
+    while(messageIds.length) {
+      var mId = messageIds[0];
+      var m = messages[mId];
+      if (m.expires < now) {
+        messageIds.splice(0, 1);
+        delete messages[mId];
+      } else break;
+    }
+    scheduleExpiration();
+  }
+
+
+  /// End
+
+  m.end =
+  function() {
+    if (timeout) clearTimeout(timeout);
+    messageIds = [];
+    messages = {};
+  };
+
 
   return m;
 };

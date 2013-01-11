@@ -19,7 +19,10 @@ function PeerStream(options) {
   var remoteReconnect;
   var remoteEmitter;
   var remoteStream;
-  var messages = Messages();
+  var messages = Messages({
+    maxRetention: options.bufferMax,
+    timeout: options.bufferTimeout
+  });
   var queue = [];
   var ended = false;
   var initiated = false;
@@ -203,6 +206,7 @@ function PeerStream(options) {
       remoteReconnect.reconnect = false;
       remoteReconnect.disconnect();
     }
+    messages.end();
     if (done) done();
   }
 
