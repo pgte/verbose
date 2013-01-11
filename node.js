@@ -5,6 +5,7 @@ var PeerStream = require('./peer_stream');
 var Stream = require('stream');
 var duplexer = require('duplexer');
 var through = require('through');
+var propagate = require('propagate');
 
 exports =
 module.exports =
@@ -18,7 +19,7 @@ function Node(options) {
   var inStream = through(identity);
   var outStream = through(identity);
 
-  var s = duplexer(inStream, outStream);
+  var s = duplexer(inStream, outStream); // exported stream
   
   /// Options
   
@@ -36,12 +37,17 @@ function Node(options) {
     stream.pipe(outStream);
     inStream.pipe(stream);
 
-    function onEnd() {
-      console.log('onEnd');
-      stream.end();
-    }
+    // propagate some events
+    var p = propagate(
+      ['connect', 'disconnect', 'backoff', 'reconnect', 'initiated'],
+      stream,
+      s);
+
+    // on end
+    var onEnd = stream.end.bind(stream);
     s.on('end', onEnd);
     stream.on('end', function() {
+      p.end(); // stop event propagation
       s.removeListener('end', onEnd);
     });
   }
@@ -71,13 +77,20 @@ function Node(options) {
 
   s.listen =
   function listen(port, host, callback) {
-    var ss = server.create(port, host);
+    if (typeof host == 'function') {
+      callback = host;
+      host = undefined;
+    }
+
+    var ss = server.create();
     ss.incrementUsers();
     ss.removeListener('connection', handleServerConnection);
     ss.on('connection', handleServerConnection);
-    ss.listen(port, host, callback);
+    if (callback) ss.once('listening', callback);
+    ss.listen(port, host);
     
     s.on('end', function() {
+      ss.removeListener('connection', handleServerConnection);
       ss.decrementUsersAndClose();
     });
   };

@@ -11,7 +11,7 @@ function decrementUsersAndClose(callback) {
   if (! users) server.close();
 }
 
-function create(port, host) {
+function create() {
   if (! server) {
     server = net.createServer();
     server.incrementUsers = incrementUsers;

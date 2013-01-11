@@ -16,6 +16,7 @@ function PeerStream(options) {
 
   var remoteReconnect;
   var remoteEmitter;
+  var remoteStream;
   var queue = [];
   var ended = false;
   var initiated = false;
@@ -56,30 +57,33 @@ function PeerStream(options) {
   var handleStream =
   s.handleStream =
   function handleStream(_stream) {
+
     remoteStream = _stream;
+
+    // Create remote emitter
     remoteEmitter = duplexEmitter(remoteStream);
+
+    // Do handshake
+    console.log('about to do handshake');
     handshake(function(err) {
       if (err) return s.emit('error', err);
       init();
       process.nextTick(flush);
     });
 
+    // Domain and error handling
     var d = domain.create();
     d.add(_stream);
     d.on('error', function(err) {
-      try {
-        _stream.end();
-      } catch(err) {
-        s.emit('error', err);
-      }
-      if (err.code != 'EPIPE') {
-        s.emit('error', err);
-      }
+      if (err.code === 'EPIPE') {
+        // The server was not there.
+        // Let's just quit and let reconnect kick in
+        _stream.destroy();
+      } else s.emit('error', err);
     });
-
   }
 
-  
+
   /// Connect
   
   s.connect =
@@ -149,6 +153,7 @@ function PeerStream(options) {
     done();
   };
 
+  var enqueueWrite =
   s.write =
   function enqueueWrite(msg) {
     enqueue(write, msg);
@@ -167,7 +172,7 @@ function PeerStream(options) {
       remoteReconnect.reconnect = false;
       remoteReconnect.disconnect();
     }
-    done();
+    if (done) done();
   }
 
   s.end =
@@ -177,6 +182,8 @@ function PeerStream(options) {
     process.nextTick(flush);
     return false;
   };
+
+  s.destroy = end.bind(s);
 
 
   return s;

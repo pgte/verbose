@@ -34,7 +34,7 @@ function Options(options) {
     options.log = function() {};
   }
 
-  for(var p in defaults) {
+  for (var p in defaults) {
     if (! options[p]) options[p] = defaults[p];
   }
 
