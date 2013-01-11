@@ -171,12 +171,63 @@ test('emits data on server message', function(t) {
   s.connect(port);
 
   server.send = [
-    'message 1',
-    'message 2'
+    ['message 1', {id: 1, nodes: ['a']}],
+    ['message 2', {id: 2, nodes: ['a']}]
   ];
 
   server.listen(port);
 
+});
+
+test('acknowledges message', function(t) {
+  t.plan(2);
+
+  var server = MockServer(options);
+
+  var port = helpers.randomPort();
+  var s = PeerStream(options);
+
+  setTimeout(function() {
+    t.deepEqual(server.acknowledges, ['abc', 'def']);
+    t.equal(s.bufferLength(), 0);
+    s.end();
+    server.close();
+  }, 500);
+
+  s.connect(port);
+
+  server.send = [
+    ['message 1', {id: 'abc', nodes: ['a']}],
+    ['message 2', {id: 'def', nodes: ['a']}]
+  ];
+
+  server.listen(port);
+});
+
+test('emits acknowledges', function(t) {
+  t.plan(3);
+
+  var server = MockServer(options);
+
+  var port = helpers.randomPort();
+  var s = PeerStream(options);
+  s.write('abc');
+  s.write('def');
+
+  var acknowledges = 0;
+  s.on('acknowledge', function(id) {
+    t.ok(!! id);
+    acknowledges ++;
+    if (acknowledges == 2) {
+      t.ok(true, 'ended');
+      s.end();
+      server.close();
+    }
+  });
+
+  s.connect(port);
+
+  server.listen(port);
 });
 
 // test('synchronizes missing messages')

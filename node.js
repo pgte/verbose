@@ -39,7 +39,13 @@ function Node(options) {
 
     // propagate some events
     var p = propagate(
-      ['connect', 'disconnect', 'backoff', 'reconnect', 'initiated'],
+      [
+        'connect',
+        'disconnect',
+        'backoff',
+        'reconnect',
+        'initiated',
+        'acknowledge'],
       stream,
       s);
 

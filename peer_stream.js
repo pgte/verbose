@@ -3,6 +3,8 @@ var reconnect = require('reconnect');
 var Stream = require('stream');
 var propagate = require('propagate');
 var domain = require('domain');
+var uuid = require('node-uuid');
+var Messages = require('./messages');
 var slice = Array.prototype.slice;
 
 exports =
@@ -17,6 +19,7 @@ function PeerStream(options) {
   var remoteReconnect;
   var remoteEmitter;
   var remoteStream;
+  var messages = Messages();
   var queue = [];
   var ended = false;
   var initiated = false;
@@ -25,9 +28,7 @@ function PeerStream(options) {
   /// Queue
 
   function enqueue() {
-    var args = slice.call(arguments);
-    if (args.length == 1) args.push([]);
-    queue.push(args);
+    queue.push(slice.call(arguments));
   }
 
   function flush(err) {
@@ -35,16 +36,22 @@ function PeerStream(options) {
     if (queue.length) {
       var action = queue[0];
       var method = action[0];
-      var args = action[1];
+      var args = action.slice(1);
       
       // Drop this if stream is not active
-      if (method == write && (ended || ! initiated)) {
+      if ((ended || ! initiated) && (method == write)) {
         return;
       }
 
-      if (! Array.isArray(args)) args = [args];
+      // we're continuing with this queue item
+      // remove it from the queue
       queue.splice(0, 1);
-      args.push(flush); // callback function
+
+      // push in the callback function
+      // as the last argument
+      args.push(flush);
+
+      // call the action method
       method.apply(this, args);
     } else {
       s.emit('drain');
@@ -64,7 +71,6 @@ function PeerStream(options) {
     remoteEmitter = duplexEmitter(remoteStream);
 
     // Do handshake
-    console.log('about to do handshake');
     handshake(function(err) {
       if (err) return s.emit('error', err);
       init();
@@ -123,32 +129,51 @@ function PeerStream(options) {
   }
 
 
+  /// On Remote Message
+
+  function onRemoteMessage(msg, meta) {
+    if (! meta || ! meta.nodes || ! meta.id) throw new Error('missing meta info in message');
+    if (meta.nodes.indexOf(options.node_id) == -1) {
+      meta.nodes.push(options.node_id);
+      acknowledge(meta.id);
+      s.emit('data', msg);
+    }
+  }
+
+  /// Acknowledge
+
+  function acknowledge(id, done) {
+    remoteEmitter.emit('ack', id);
+  }
+
+  function onRemoteAcknowledge(id) {
+    messages.acknowledge(id);
+    s.emit('acknowledge', id);
+  }
+
+  s.bufferLength =
+  function bufferLength() {
+    return messages.length();
+  };
+
   /// Init
 
   function init() {
-    function onRemoteMessage(msg, meta) {
-      if (! meta) meta = { nodes: [] };
-      if (meta.nodes.indexOf(options.node_id) == -1) {
-        meta.nodes.push(options.node_id);
-        s.emit('data', msg);
-      }
-    }
     remoteEmitter.on('message', onRemoteMessage);
+    remoteEmitter.on('ack', onRemoteAcknowledge);
     
     // Remove all listeners once the stream gets disconnected
     s.once('disconnect', function() {
       initiated = false;
       remoteEmitter.removeListener('message', onRemoteMessage);
+      remoteEmitter.removeListener('ack', onRemoteAcknowledge);
     });
   }
 
 
   /// Write
 
-  function write(msg, done) {
-    var meta = {
-      nodes: [options.node_id]
-    };
+  function write(msg, id, meta, done) {
     remoteEmitter.emit('message', msg, meta);
     done();
   };
@@ -156,7 +181,13 @@ function PeerStream(options) {
   var enqueueWrite =
   s.write =
   function enqueueWrite(msg) {
-    enqueue(write, msg);
+    var id = uuid.v4();
+    var meta = {
+      id: id,
+      nodes: [options.node_id]
+    };
+    messages.push(msg, id, meta);
+    enqueue(write, msg, id, meta);
     process.nextTick(flush);
     return false;
   };
