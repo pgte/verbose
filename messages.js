@@ -31,11 +31,10 @@ function create(options) {
 
   m.next =
   function next() {
-    if (messageIds.length) {
-      var id = messageIds.splice(0, 1)[0];
+    var id = messageIds[currentIndex];
+    if (id) {
       var m = messages[id];
       currentIndex ++;
-      scheduleExpiration();
       return m;
     }
   };

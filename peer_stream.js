@@ -27,6 +27,8 @@ function PeerStream(options) {
   var ended = false;
   var initiated = false;
 
+  var lastMessageId;
+
 
   /// Queue
 
@@ -87,7 +89,7 @@ function PeerStream(options) {
       if (err.code === 'EPIPE') {
         // The server was not there.
         // Let's just quit and let reconnect kick in
-        _stream.destroy();
+        _stream.end();
       } else s.emit('error', err);
     });
   }
@@ -104,6 +106,14 @@ function PeerStream(options) {
   };
 
 
+  /// Resend since
+
+  function resendSince(id) {
+    var m;
+    messages.acknowledge(id);
+    while(m = messages.next()) write(m.message, m.id, m.meta);
+  }
+
   /// Handshake
 
   function handshake(done) {
@@ -112,13 +122,16 @@ function PeerStream(options) {
         'timeout waiting for channel handshake. Waited for ' + options.timeout + ' ms'));
     }, options.timeout);
 
-    remoteEmitter.once('channel', function(channel) {
+    remoteEmitter.once('channel', function(channel, lastMessageId) {
       clearTimeout(timeout);
       if (channel != options.channel) {
         return done(
           new Error(
             'wrong channel name: ' + channel + '. Expected ' + options.channel));
       }
+
+      if (lastMessageId) resendSince(lastMessageId);
+
       s.emit('initiated');
       initiated = true;
       done();
@@ -128,7 +141,7 @@ function PeerStream(options) {
       s.emit('error', err);
     });
 
-    remoteEmitter.emit('channel', options.channel);
+    remoteEmitter.emit('channel', options.channel, lastMessageId);
   }
 
 
@@ -138,7 +151,8 @@ function PeerStream(options) {
     if (! meta || ! meta.nodes || ! meta.id) throw new Error('missing meta info in message');
     if (meta.nodes.indexOf(options.node_id) == -1) {
       meta.nodes.push(options.node_id);
-      acknowledge(meta.id);
+      lastMessageId = meta.id;
+      acknowledge(lastMessageId);
       s.emit('data', msg);
     }
   }
@@ -178,7 +192,7 @@ function PeerStream(options) {
 
   function write(msg, id, meta, done) {
     remoteEmitter.emit('message', msg, meta);
-    done();
+    if (done) done();
   };
 
   var enqueueWrite =
@@ -198,15 +212,19 @@ function PeerStream(options) {
 
   /// End
 
-  function end(done) {
-    if (ended) return done();
-    ended = true;
-    s.writable = false;
+  function removeListeners() {
     if (remoteReconnect) {
       remoteReconnect.reconnect = false;
       remoteReconnect.disconnect();
     }
+  }
+
+  function end(done) {
+    if (ended) return done();
+    ended = true;
+    s.writable = false;
     messages.end();
+    removeListeners();
     if (done) done();
   }
 
@@ -217,9 +235,6 @@ function PeerStream(options) {
     process.nextTick(flush);
     return false;
   };
-
-  s.destroy = end.bind(s);
-
 
   return s;
 };

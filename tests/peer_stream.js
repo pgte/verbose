@@ -14,6 +14,55 @@ var options = {
 };
 
 
+
+test('synchronizes missing messages', function(t) {
+  
+  t.plan(5);
+  
+  var server = MockServer(options);
+  var port = helpers.randomPort();
+  var s = PeerStream(options);
+
+  server.acknowledge = false;
+  server.listen(port);
+  s.connect(port);
+  s.write('ghi');
+  s.write('jkl');
+  s.write('mno');
+
+  setTimeout(function() {
+    t.deepEqual(server.messages, ['ghi', 'jkl', 'mno']);
+    t.equal(server.metas.length, 3)
+    t.equal(s.bufferLength(), 3);
+
+    var firstId = server.metas[0].id;
+    t.ok(!! firstId);
+    
+    // reset messages
+    server.metas = [];
+    server.messages = [];
+
+    server.forceClose();
+
+    server.once('close', function() {
+      server.sync = firstId;
+      server.listen(port);
+
+      setTimeout(function() {
+        t.deepEqual(server.messages, ['jkl', 'mno']);
+        s.end();
+        server.close();
+      }, 500);
+
+    });
+
+
+  }, 500);
+});
+
+return;
+
+
 test('handshakes', function(t) {
   t.plan(3);
   
@@ -179,7 +228,7 @@ test('emits data on server message', function(t) {
 
 });
 
-test('acknowledges message', function(t) {
+test('acknowledges message and removes from buffer', function(t) {
   t.plan(2);
 
   var server = MockServer(options);
@@ -253,7 +302,6 @@ test('buffering messages time out', function(t) {
   t.equal(s.bufferLength(), 2);
 
   setTimeout(function() {
-    console.log('hey');
     t.equal(s.bufferLength(), 0);
     s.end();
     server.close();
@@ -261,7 +309,8 @@ test('buffering messages time out', function(t) {
 
   server.listen(port)
 });
-// test('synchronizes missing messages')
+
+
 
 // test('sends missing messages after reconnect')
 

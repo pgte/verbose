@@ -17,7 +17,6 @@ test('next', function(t) {
   t.similar(m.next(), {message: 'message 1', id: 'id1', meta: 'meta1'});
   t.similar(m.next(), {message: 'message 2', id: 'id2', meta: 'meta2'});
   t.type(m.next(), 'undefined');
-  t.equal(m.length(), 0);
   m.end();
   t.end();
 });

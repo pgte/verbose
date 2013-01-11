@@ -7,6 +7,7 @@ function MockServer(options) {
   server.acknowledge = true;
   server.bufs = '';
   server.messages = [];
+  server.metas = [];
   server.acknowledges = [];
   var conns = [];
   
@@ -16,12 +17,16 @@ function MockServer(options) {
       server.bufs += d.toString();
     });
 
-    var remoteEmitter = duplexEmitter(stream);
-    remoteEmitter.emit('channel', options.channel);
+    var remoteEmitter =
+    stream.remoteEmitter =
+    duplexEmitter(stream);
+
+    remoteEmitter.emit('channel', options.channel, server.sync);
     
     remoteEmitter.on('message', function(m, meta) {
       if (server.acknowledge) remoteEmitter.emit('ack', meta.id);
       server.messages.push(m);
+      server.metas.push(meta);
     });
 
     remoteEmitter.on('ack', function(id) {
