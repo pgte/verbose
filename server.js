@@ -7,8 +7,12 @@ function incrementUsers() {
 }
 
 function decrementUsersAndClose(callback) {
-  users --;
-  if (! users) server.close();
+  if (users > 0) {
+    users --;
+    if (! users) {
+      server.close();
+    }
+  }
 }
 
 function create() {

@@ -59,7 +59,75 @@ test('client emits', function(t) {
 
 });
 
-// test('several clients connected to server')
+
+
+test('initiated and end events happen only once', function(t) {
+  
+  t.plan(4);
+  
+  var s = Node(helpers.clone(options));
+  var c = Node(helpers.clone(options));
+  var port = helpers.randomPort();
+  
+  c.connect(port);
+  
+  c.on('initiated', function() {
+    t.ok(true, 'c.initiated');
+
+    c.once('end', function() {
+      t.ok(true, 'c.ended');
+      c.on('end', helpers.shouldNot('c.end more than once'));
+    });
+    c.end();
+    s.end();
+  });
+  
+  s.on('initiated', function() {
+    t.ok(true, 'c.initiated');
+
+    s.once('end', function() {
+      t.ok(true, 's.ended');
+      s.on('end', helpers.shouldNot('s.end more than once'));
+    });
+  });
+  
+  s.listen(port);
+});
+
+
+test('several clients connected to server', function(t) {
+
+  t.plan(4);
+  var s = Node(helpers.clone(options));
+  var c1 = Node(helpers.clone(options));
+  var c2 = Node(helpers.clone(options));
+  var port = helpers.randomPort();
+  c1.connect(port);
+  c2.connect(port);
+  s.listen(port);
+
+  c1.write('abc');
+  c2.write('def');
+  c1.write('ghi');
+  c2.write('jkl');
+
+  var collected = [];
+  s.on('data', function(d) {
+    collected.push(d);
+    if (collected.length == 4) {
+      t.ok(collected.indexOf('abc') >= 0, 'got message 1');
+      t.ok(collected.indexOf('def') >= 0, 'got message 2');
+      t.ok(collected.indexOf('ghi') >= 0, 'got message 3');
+      t.ok(collected.indexOf('jkl') >= 0, 'got message 4');
+      c1.end();
+      c2.end();
+      s.end();
+    }
+  });
+
+});
+
+// test('connect')
 
 // test('client connected to several servers')
 

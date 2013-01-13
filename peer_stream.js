@@ -118,6 +118,10 @@ function PeerStream(options) {
   /// Handshake
 
   function handshake(done) {
+
+    // Send "channel" event to peer
+    remoteEmitter.emit('channel', options.channel, lastMessageId);
+
     var timeout = setTimeout(function() {
       done(new Error(
         'timeout waiting for channel handshake. Waited for ' + options.timeout + ' ms'));
@@ -142,7 +146,6 @@ function PeerStream(options) {
       s.emit('error', err);
     });
 
-    remoteEmitter.emit('channel', options.channel, lastMessageId);
   }
 
 
@@ -197,14 +200,17 @@ function PeerStream(options) {
     resetAcknowledgeTimeout();
 
     // Remove all listeners once the stream gets disconnected
-    s.once('disconnect', function() {
+    function cleanup() {
       initiated = false;
       remoteEmitter.removeListener('message', onRemoteMessage);
       remoteEmitter.removeListener('ack', onRemoteAcknowledge);
       s.removeListener('acknowledge', resetAcknowledgeTimeout);
       clearInterval(ackInterval);
       if (ackTimeout) clearTimeout(ackTimeout);
-    });
+    }
+    
+    s.once('disconnect', cleanup);
+    s.once('end', cleanup);
   }
 
 

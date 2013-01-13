@@ -342,4 +342,51 @@ test('reconnects on timeout', function(t) {
 
 });
 
+test('emits the end event when ends', function(t) {
+
+  t.plan(1);
+
+  var server = MockServer(options);
+  var port = helpers.randomPort();
+  var s = PeerStream(options);
+
+  server.listen(port);
+
+  s.connect(port);
+
+  s.on('initiated', function() {
+    s.once('end', function() {
+      t.ok(true, 'ended');
+      server.close();
+    });
+    s.end();
+  });
+
+});
+
+test('emits the end event only once', function(t) {
+
+  t.plan(1);
+
+  var server = MockServer(options);
+  var port = helpers.randomPort();
+  var s = PeerStream(options);
+
+  server.listen(port);
+
+  s.connect(port);
+
+  s.on('initiated', function() {
+    s.once('end', function() {
+      t.ok(true, 'ended');
+      s.on('end', helpers.shouldNot('emit end event more than once'));
+      server.close();
+    });
+    s.end();
+  });
+
+});
+
 // test('spits out stream stats')
+
+// test('be killable')

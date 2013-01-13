@@ -49,13 +49,17 @@ function Node(options) {
       stream,
       s);
 
-    // on end
-    var onEnd = stream.end.bind(stream);
-    s.on('end', onEnd);
-    stream.on('end', function() {
+    stream.once('end', function() {
       p.end(); // stop event propagation
       s.removeListener('end', onEnd);
     });
+
+    // on end
+    function onEnd() {
+      stream.end();
+    }
+
+    s.on('_end', onEnd);
   }
 
   /// Connect
@@ -95,14 +99,14 @@ function Node(options) {
     if (callback) ss.once('listening', callback);
     ss.listen(port, host);
     
-    s.on('end', function() {
+    s.on('_end', function() {
       ss.removeListener('connection', handleServerConnection);
       ss.decrementUsersAndClose();
     });
   };
 
   s.end = function() {
-    s.emit('end');
+    s.emit('_end');
   };
 
   return s;
