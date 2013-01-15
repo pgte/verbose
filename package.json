@@ -29,6 +29,6 @@
     "async": "*",
     "event-stream": "*"
   },
-  "scripts": { "test": "node node_modules/tap/bin/tap.js tests/peer_stream.js tests/node.js tests/messages.js" },
+  "scripts": { "test": "node node_modules/tap/bin/tap.js tests/peer_list.js tests/peer_stream.js tests/node.js tests/messages.js" },
   "tags": ["remote", "event", "emitter", "synchronization", "peer to peer"]
 }

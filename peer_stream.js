@@ -15,6 +15,8 @@ function PeerStream(options) {
   var s = new Stream();
   s.writable = true;
   s.readable = true;
+  s.connectedTimes = 0;
+  s.lastMessageId = undefined;
 
   var remoteReconnect;
   var remoteEmitter;
@@ -25,11 +27,8 @@ function PeerStream(options) {
   });
   var queue = [];
   var ended = false;
-  var initiated = false;
-
-  var lastMessageId;
-
-
+  var initialized = false;
+  
   /// Queue
 
   function enqueue() {
@@ -44,7 +43,7 @@ function PeerStream(options) {
       var args = action.slice(1);
       
       // Drop this if stream is not active
-      if ((ended || ! initiated) && (method == write)) {
+      if ((ended || ! initialized) && (method == write)) {
         return;
       }
 
@@ -69,6 +68,7 @@ function PeerStream(options) {
   var handleStream =
   s.handleStream =
   function handleStream(_stream) {
+    s.connectedTimes ++;
 
     remoteStream = _stream;
 
@@ -86,7 +86,7 @@ function PeerStream(options) {
     var d = domain.create();
     d.add(_stream);
     d.on('error', function(err) {
-      if (err.code === 'EPIPE') {
+      if (err.code === 'EPIPE' || err.code === 'ECONNRESET') {
         // The server was not there.
         // Let's just quit and let reconnect kick in
         _stream.end();
@@ -106,40 +106,39 @@ function PeerStream(options) {
   };
 
 
-  /// Resend since
-
-  function resendSince(id) {
-    var m;
-    messages.acknowledge(id);
-    while(m = messages.next()) write(m.message, m.id, m.meta);
-  }
-
 
   /// Handshake
 
   function handshake(done) {
 
-    // Send "channel" event to peer
-    remoteEmitter.emit('channel', options.channel, lastMessageId);
-
+    remoteEmitter.emit('peerid', options.node_id);
     var timeout = setTimeout(function() {
       done(new Error(
         'timeout waiting for channel handshake. Waited for ' + options.timeout + ' ms'));
     }, options.timeout);
 
-    remoteEmitter.once('channel', function(channel, lastMessageId) {
-      clearTimeout(timeout);
-      if (channel != options.channel) {
-        return done(
-          new Error(
-            'wrong channel name: ' + channel + '. Expected ' + options.channel));
-      }
+    remoteEmitter.once('peerid', function(remotePeerId) {
 
-      if (lastMessageId) resendSince(lastMessageId);
+      remoteEmitter.once('sync', function(channel, lastMessageId, isReconnect) {
+        clearTimeout(timeout);
+        if (channel != options.channel) {
+          return done(
+            new Error(
+              'wrong channel name: ' + channel + '. Expected ' + options.channel));
+        }
 
-      s.emit('initiated');
-      initiated = true;
-      done();
+        s.emit('initialized', remotePeerId);
+
+        if (lastMessageId || isReconnect) resendSince(lastMessageId);
+
+        initialized = true;
+        done();
+      });
+
+      s.emit('peerid', remotePeerId);
+
+      remoteEmitter.emit('sync', options.channel, s.lastMessageId, s.connectedTimes > 1);
+
     });
 
     remoteEmitter.on('error', function(err) {
@@ -149,13 +148,39 @@ function PeerStream(options) {
   }
 
 
+
+  /// Messages
+
+  s.takeMessages =
+  function takeMessages(_messages) {
+    messages = _messages;
+  };
+
+  s.pendingMessages =
+  function pendingMessages() {
+    return messages;
+  };
+
+
+
+  /// Resend since
+
+  function resendSince(id) {
+    var m;
+    messages.acknowledge(id);
+    while(m = messages.next()) {
+      write(m.message, m.id, m.meta);
+    }
+  }
+  
+
   /// On Remote Message
 
   function onRemoteMessage(msg, meta) {
     if (! meta || ! meta.nodes || ! meta.id) throw new Error('missing meta info in message');
     if (meta.nodes.indexOf(options.node_id) == -1) {
       meta.nodes.push(options.node_id);
-      lastMessageId = meta.id;
+      s.lastMessageId = meta.id;
       s.emit('data', msg);
     }
   }
@@ -181,7 +206,7 @@ function PeerStream(options) {
     
     // Send Acknowledge Interval
     function acknowledge() {
-      if (lastMessageId) remoteEmitter.emit('ack', lastMessageId);
+      if (s.lastMessageId) remoteEmitter.emit('ack', s.lastMessageId);
     }
     var ackInterval = setInterval(acknowledge, options.acknowledgeInterval);
 
@@ -201,7 +226,7 @@ function PeerStream(options) {
 
     // Remove all listeners once the stream gets disconnected
     function cleanup() {
-      initiated = false;
+      initialized = false;
       remoteEmitter.removeListener('message', onRemoteMessage);
       remoteEmitter.removeListener('ack', onRemoteAcknowledge);
       s.removeListener('acknowledge', resetAcknowledgeTimeout);
@@ -238,19 +263,12 @@ function PeerStream(options) {
 
   /// End
 
-  function removeListeners() {
-    if (remoteReconnect) {
-      remoteReconnect.reconnect = false;
-      remoteReconnect.disconnect();
-    }
-  }
-
   function end(done) {
     if (ended) return done();
     ended = true;
     s.writable = false;
     messages.end();
-    removeListeners();
+    s.disconnect();
     s.emit('end');
     if (done) done();
   }
@@ -262,6 +280,14 @@ function PeerStream(options) {
     process.nextTick(flush);
     return false;
   };
+
+  s.disconnect =
+  function disconnect() {
+    if (remoteReconnect) {
+      remoteReconnect.reconnect = false;
+      remoteReconnect.disconnect();
+    }
+  }
 
   return s;
 };

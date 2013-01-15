@@ -10,7 +10,7 @@ var options = {
   node_id: 'NODE_ID_1',
   channel: 'CHANNEL_1',
   log:     function() {},
-  timeout: 500,
+  timeout: 1000,
   acknowledgeInterval: 100
 };
 
@@ -34,8 +34,8 @@ test('handshakes', function(t) {
     },
 
     function(done) {
-      s.once('initiated', function() {
-        t.ok(true, 'initiated');
+      s.once('initialized', function() {
+        t.ok(true, 'initialized');
         done();
       });
     }
@@ -163,7 +163,7 @@ test('emits data on server message', function(t) {
   var collected = [];
   s.on('data', function(d) {
     collected.push(d);
-    if (collected.length == 2) {
+    if (collected.length >= 2) {
       t.deepEqual(collected, ['message 1', 'message 2']);
       s.end();
       server.close();      
@@ -220,7 +220,7 @@ test('emits acknowledges', function(t) {
   s.on('acknowledge', function(id) {
     t.ok(!! id);
     acknowledges ++;
-    if (acknowledges == 2) {
+    if (acknowledges >= 2) {
       t.ok(true, 'ended');
       s.end();
       server.close();
@@ -305,7 +305,6 @@ test('synchronizes missing messages', function(t) {
 
     });
 
-
   }, 500);
 });
 
@@ -328,10 +327,10 @@ test('reconnects on timeout', function(t) {
   s.on('data', function(d) {
     collected.push(d);
     server.send = [];
-    if (collected.length == 2) {
+    if (collected.length >= 2) {
       s.once('timeout', function() {
         t.ok(true, 'got timeout');
-        s.once('initiated', function() {
+        s.once('initialized', function() {
           t.ok('ended', true);
           s.end();
           server.close();
@@ -354,7 +353,7 @@ test('emits the end event when ends', function(t) {
 
   s.connect(port);
 
-  s.on('initiated', function() {
+  s.on('initialized', function() {
     s.once('end', function() {
       t.ok(true, 'ended');
       server.close();
@@ -376,7 +375,7 @@ test('emits the end event only once', function(t) {
 
   s.connect(port);
 
-  s.on('initiated', function() {
+  s.on('initialized', function() {
     s.once('end', function() {
       t.ok(true, 'ended');
       s.on('end', helpers.shouldNot('emit end event more than once'));

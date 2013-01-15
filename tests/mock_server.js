@@ -21,7 +21,8 @@ function MockServer(options) {
     stream.remoteEmitter =
     duplexEmitter(stream);
 
-    remoteEmitter.emit('channel', options.channel, server.sync);
+    remoteEmitter.emit('peerid', options.node_id);
+    remoteEmitter.emit('sync', options.channel, server.sync, false);
     
     remoteEmitter.on('message', function(m, meta) {
       if (server.acknowledge) remoteEmitter.emit('ack', meta.id);

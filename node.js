@@ -2,6 +2,7 @@ var EventEmitter = require('events').EventEmitter;
 var server = require('./server');
 var Options = require('./options');
 var PeerStream = require('./peer_stream');
+var PeerList = require('./peer_list');
 var Stream = require('stream');
 var duplexer = require('duplexer');
 var through = require('through');
@@ -10,6 +11,9 @@ var propagate = require('propagate');
 exports =
 module.exports =
 function Node(options) {
+
+  /// Peer List
+  var peerList = PeerList();
 
   /// Exported stream
 
@@ -23,7 +27,9 @@ function Node(options) {
   
   /// Options
   
-  options = Options(options);
+  s.options =
+  options =
+  Options(options);
 
   
   /// Logging
@@ -34,8 +40,8 @@ function Node(options) {
   /// Wire up stream
   
   function wireup(stream) {
-    stream.pipe(outStream);
-    inStream.pipe(stream);
+    stream.pipe(outStream, {end: false});
+    inStream.pipe(stream, {end: false});
 
     // propagate some events
     var p = propagate(
@@ -44,14 +50,16 @@ function Node(options) {
         'disconnect',
         'backoff',
         'reconnect',
-        'initiated',
+        'initialized',
         'acknowledge'],
       stream,
       s);
 
     stream.once('end', function() {
       p.end(); // stop event propagation
-      s.removeListener('end', onEnd);
+      s.removeListener('_end', onEnd);
+      s.removeListener('_disconnect', onDisconnect);
+      s.emit('end');
     });
 
     // on end
@@ -59,7 +67,25 @@ function Node(options) {
       stream.end();
     }
 
+    function onDisconnect() {
+      stream.disconnect();
+    }
+
     s.on('_end', onEnd);
+    s.on('_disconnect', onDisconnect);
+  }
+
+  
+  /// Add Peer
+
+  function addPeer(peerId, peerStream) {
+    var existingPeer = peerList.get(peerId);
+    if (existingPeer) {
+      peerStream.takeMessages(existingPeer.pendingMessages());
+      peerStream.lastMessageId = existingPeer.lastMessageId;
+      peerStream.connectedTimes += existingPeer.connectedTimes;
+    }
+    peerList.add(peerId, peerStream);
   }
 
   /// Connect
@@ -71,6 +97,9 @@ function Node(options) {
       host = undefined;
     }
     var peerStream = PeerStream(options);
+    peerStream.once('peerid', function(peerId) {
+      addPeer(peerId, peerStream);
+    });
     peerStream.connect(port, host, callback);
     wireup(peerStream);
     return peerStream;
@@ -81,8 +110,11 @@ function Node(options) {
 
   function handleServerConnection(stream) {
     var peerStream = PeerStream(options);
-    peerStream.handleStream(stream);
+    peerStream.once('peerid', function(peerId) {
+      addPeer(peerId, peerStream);
+    });
     wireup(peerStream);
+    peerStream.handleStream(stream);
   }
 
   s.listen =
@@ -105,8 +137,14 @@ function Node(options) {
     });
   };
 
-  s.end = function() {
+  s.end =
+  function() {
     s.emit('_end');
+  };
+
+  s.disconnect =
+  function() {
+    s.emit('_disconnect');
   };
 
   return s;

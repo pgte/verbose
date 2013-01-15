@@ -7,7 +7,7 @@ var options = {
   timeout: 5e3
 };
 
-
+  
 test('server emits', function(t) {
   t.plan(1);
   var s = Node(helpers.clone(options));
@@ -24,7 +24,7 @@ test('server emits', function(t) {
 
   s.on('data', function(d) {
     collected.push(d);
-    if (collected.length == 2) {
+    if (collected.length >= 2) {
       t.deepEqual(collected, ['message 1', 'message 2']);
       s.end();
       c.end();
@@ -41,7 +41,7 @@ test('client emits', function(t) {
   c.connect(port);
 
   s.listen(port, function() {
-    c.on('initiated', function() {
+    c.on('initialized', function() {
       s.write('message 2.1');
       s.write('message 2.2');
     });
@@ -60,9 +60,7 @@ test('client emits', function(t) {
 });
 
 
-
-test('initiated and end events happen only once', function(t) {
-  
+test('initialized and end events happen only once', function(t) {
   t.plan(4);
   
   var s = Node(helpers.clone(options));
@@ -70,26 +68,28 @@ test('initiated and end events happen only once', function(t) {
   var port = helpers.randomPort();
   
   c.connect(port);
-  
-  c.on('initiated', function() {
-    t.ok(true, 'c.initiated');
 
-    c.once('end', function() {
-      t.ok(true, 'c.ended');
-      c.on('end', helpers.shouldNot('c.end more than once'));
-    });
-    c.end();
-    s.end();
-  });
-  
-  s.on('initiated', function() {
-    t.ok(true, 'c.initiated');
+  var initializedCount = 0;
+  function initialized() {
+    initializedCount ++;
+    t.ok(initializedCount <= 2, 'doesnt emit initialized more than once');
+    if (initializedCount >= 2) {
+      c.once('end', function() {
+        t.ok(true, 'c.ended');
+        c.on('end', helpers.shouldNot('c.end more than once'));
+      });
+      s.once('end', function() {
+        t.ok(true, 's.ended');
+        s.on('end', helpers.shouldNot('s.end more than once'));
+      });
+      c.end();
+      s.end();
+    }
 
-    s.once('end', function() {
-      t.ok(true, 's.ended');
-      s.on('end', helpers.shouldNot('s.end more than once'));
-    });
-  });
+  }
+  
+  c.on('initialized', initialized);
+  s.on('initialized', initialized);
   
   s.listen(port);
 });
@@ -114,7 +114,7 @@ test('several clients connected to server', function(t) {
   var collected = [];
   s.on('data', function(d) {
     collected.push(d);
-    if (collected.length == 4) {
+    if (collected.length >= 4) {
       t.ok(collected.indexOf('abc') >= 0, 'got message 1');
       t.ok(collected.indexOf('def') >= 0, 'got message 2');
       t.ok(collected.indexOf('ghi') >= 0, 'got message 3');
@@ -126,6 +126,42 @@ test('several clients connected to server', function(t) {
   });
 
 });
+
+test('server peer resends missed events', function(t) {
+  t.plan(4);
+  var port = helpers.randomPort();
+  var c1 = Node(helpers.clone(options));
+  var s = Node(helpers.clone(options));
+  s.listen(port);
+
+  var reconnected = false;
+  var collected = [];
+  c1.on('data', function(d) {
+    t.ok(reconnected, 'already reconnected');
+    collected.push(d);
+    if (collected.length >= 3) {
+      t.deepEqual(collected, ['abc', 'def', 'ghi']);
+      c1.end();
+      s.end();
+    }
+  });
+
+  c1.connect(port);
+
+  c1.once('initialized', function() {
+    s.write('abc');
+    s.write('def');
+    s.write('ghi');
+    c1.disconnect();
+    c1.once('disconnect', function() {
+      reconnected = true;
+      c1.connect(port);
+    });
+  });
+
+});
+
+// test('after disconnected for a long time and a peer gets garbage-collected')
 
 // test('connect')
 

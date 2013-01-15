@@ -47,17 +47,19 @@ function create(options) {
   m.length =
   function length() {
     return messageIds.length;
-  }
+  };
 
   m.acknowledge =
   function acknowledge(id) {
     var mId;
-    while(messageIds.length) {
-      mId = messageIds.splice(0, 1)[0];
-      delete messages[mId];
-      if (mId == id) break;
+    if (id) {
+      while(messageIds.length) {
+        mId = messageIds.splice(0, 1)[0];
+        delete messages[mId];
+        if (mId == id) break;
+      }      
+      scheduleExpiration();
     }
-    scheduleExpiration();
     currentIndex = 0;
   };
 
