@@ -1,27 +1,7 @@
 var net = require('net');
-var server;
-var users = 0;
-
-function incrementUsers() {
-  users ++;
-}
-
-function decrementUsersAndClose(callback) {
-  if (users > 0) {
-    users --;
-    if (! users) {
-      server.close();
-    }
-  }
-}
 
 function create() {
-  if (! server) {
-    server = net.createServer();
-    server.incrementUsers = incrementUsers;
-    server.decrementUsersAndClose = decrementUsersAndClose;
-  }
-  return server;
+  return net.createServer();
 }
 
 module.exports = {

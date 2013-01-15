@@ -165,7 +165,6 @@ function Node(options) {
     }
 
     var ss = server.create();
-    ss.incrementUsers();
     ss.removeListener('connection', handleServerConnection);
     ss.on('connection', handleServerConnection);
     if (callback) ss.once('listening', callback);
@@ -173,7 +172,7 @@ function Node(options) {
     
     s.on('_end', function() {
       ss.removeListener('connection', handleServerConnection);
-      ss.decrementUsersAndClose();
+      ss.close();
     });
   };
 
