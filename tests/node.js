@@ -231,5 +231,3 @@ test('client connected to several servers', function(t) {
   });
 
 });
-
-// test('emits admin events')

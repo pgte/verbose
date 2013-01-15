@@ -9,7 +9,7 @@ var slice = Array.prototype.slice;
 
 exports =
 module.exports =
-function PeerStream(options) {
+function PeerStream(options, messageHub) {
   var s = new Stream();
   s.writable = true;
   s.readable = true;
@@ -19,6 +19,7 @@ function PeerStream(options) {
   var remoteReconnect;
   var remoteEmitter;
   var remoteStream;
+  var peerId;
   var messages = Messages({
     maxMessages: options.bufferMax,
     timeout:     options.bufferTimeout
@@ -116,7 +117,7 @@ function PeerStream(options) {
     }, options.timeout);
 
     remoteEmitter.once('peerid', function(channel, remotePeerId) {
-
+      peerId = remotePeerId;
       if (channel != options.channel) {
         clearTimeout(timeout);
         return done(
@@ -180,6 +181,7 @@ function PeerStream(options) {
     if (meta.nodes.indexOf(options.node_id) == -1) {
       meta.nodes.push(options.node_id);
       s.lastMessageId = meta.id;
+      messageHub.emit('message', msg, meta);
       s.emit('data', msg);
     }
   }
@@ -188,6 +190,17 @@ function PeerStream(options) {
     messages.acknowledge(id);
     s.emit('acknowledge', id);
   }
+
+
+  // On Message Hub Message
+
+  messageHub.on('message', function(msg, meta) {
+    if (meta.nodes.indexOf(options.node_id) == -1 &&
+        (! peerId || meta.nodes.indexOf(peerId) == -1))
+    {
+      remoteEmitter.emit('message', msg, meta);
+    }
+  });
 
 
   /// Buffer length

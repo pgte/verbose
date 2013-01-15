@@ -3,6 +3,7 @@ var server = require('./server');
 var Options = require('./options');
 var PeerStream = require('./peer_stream');
 var PeerList = require('./peer_list');
+var MessageHub = require('./message_hub');
 var StreamEmitter = require('duplex-emitter/emitter');
 var Stream = require('stream');
 var duplexer = require('duplexer');
@@ -12,6 +13,9 @@ var propagate = require('propagate');
 exports =
 module.exports =
 function Node(options) {
+
+  // Message Hub
+  var messageHub = MessageHub();
 
   // State
   var ending = false;
@@ -132,7 +136,7 @@ function Node(options) {
       callback = host;
       host = undefined;
     }
-    var peerStream = PeerStream(options);
+    var peerStream = PeerStream(options, messageHub);
     peerStream.once('peerid', function(peerId) {
       addPeer(peerId, peerStream);
     });
@@ -145,7 +149,7 @@ function Node(options) {
   /// Listen
 
   function handleServerConnection(stream) {
-    var peerStream = PeerStream(options);
+    var peerStream = PeerStream(options, messageHub);
     peerStream.once('peerid', function(peerId) {
       peerStream.node_id = peerId;
       addPeer(peerId, peerStream);
