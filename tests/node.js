@@ -187,7 +187,6 @@ test('after disconnected for a long time and a peer gets garbage-collected', fun
 
 test('client connected to several servers', function(t) {
 
-  console.log('---');
   t.plan(6);
   
   var s1 = Node(helpers.clone(options));
@@ -232,3 +231,5 @@ test('client connected to several servers', function(t) {
   });
 
 });
+
+// test('emits admin events')

@@ -3,6 +3,7 @@ var server = require('./server');
 var Options = require('./options');
 var PeerStream = require('./peer_stream');
 var PeerList = require('./peer_list');
+var StreamEmitter = require('duplex-emitter/emitter');
 var Stream = require('stream');
 var duplexer = require('duplexer');
 var through = require('through');
@@ -29,6 +30,7 @@ function Node(options) {
 
   var s = duplexer(inStream, outStream); // exported stream
   
+
   /// Options
   
   s.options =
@@ -36,11 +38,6 @@ function Node(options) {
   Options(options);
 
   
-  /// Logging
-  
-  var log = options.log;
-
-
   /// Wire up stream
   
   function wireup(stream) {
@@ -176,15 +173,28 @@ function Node(options) {
     });
   };
 
-  s.end =
-  function() {
+  function end() {
     s.emit('_end');
   };
+  s.end = end;
 
   s.disconnect =
-  function() {
+  function disconnect() {
     s.emit('_disconnect');
   };
 
+
+  /// Emitter
+
+  var emitter;
+  s.emitter = 
+  function () {
+    if (! emitter) {
+      emitter = StreamEmitter(s);
+      emitter.end = end;
+    }
+    return emitter;
+  }
+  
   return s;
 };

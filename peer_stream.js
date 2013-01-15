@@ -10,8 +10,6 @@ var slice = Array.prototype.slice;
 exports =
 module.exports =
 function PeerStream(options) {
-  var log = options.log || function() {};
-  
   var s = new Stream();
   s.writable = true;
   s.readable = true;
