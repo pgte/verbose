@@ -10,7 +10,7 @@ var options = {
   node_id: 'NODE_ID_1',
   channel: 'CHANNEL_1',
   log:     function() {},
-  timeout: 1000,
+  timeout: 2000,
   acknowledgeInterval: 100
 };
 

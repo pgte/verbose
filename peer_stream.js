@@ -111,22 +111,23 @@ function PeerStream(options) {
 
   function handshake(done) {
 
-    remoteEmitter.emit('peerid', options.node_id);
+    remoteEmitter.emit('peerid', options.channel, options.node_id);
     var timeout = setTimeout(function() {
       done(new Error(
         'timeout waiting for channel handshake. Waited for ' + options.timeout + ' ms'));
     }, options.timeout);
 
-    remoteEmitter.once('peerid', function(remotePeerId) {
+    remoteEmitter.once('peerid', function(channel, remotePeerId) {
 
-      remoteEmitter.once('sync', function(channel, lastMessageId, isReconnect) {
+      if (channel != options.channel) {
         clearTimeout(timeout);
-        if (channel != options.channel) {
-          return done(
-            new Error(
-              'wrong channel name: ' + channel + '. Expected ' + options.channel));
-        }
+        return done(
+          new Error(
+            'wrong channel name: ' + channel + '. Expected ' + options.channel));
+      }
 
+      remoteEmitter.once('sync', function(lastMessageId, isReconnect) {
+        clearTimeout(timeout);
         s.emit('initialized', remotePeerId);
 
         if (lastMessageId || isReconnect) resendSince(lastMessageId);
@@ -137,7 +138,7 @@ function PeerStream(options) {
 
       s.emit('peerid', remotePeerId);
 
-      remoteEmitter.emit('sync', options.channel, s.lastMessageId, s.connectedTimes > 1);
+      remoteEmitter.emit('sync', s.lastMessageId, s.connectedTimes > 1);
 
     });
 
