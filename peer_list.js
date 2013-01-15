@@ -25,7 +25,17 @@ function PeerList() {
     var existing = peers[id];
     delete peers[id];
     if (existing) ee.emit('removepeer', id, existing);
-  }
+  };
+
+  ee.length =
+  function() {
+    return Object.keys(peers).length;
+  };
+
+  ee.all =
+  function() {
+    return Object.keys(peers).map(function(k) { return peers[k]; });
+  };
 
   return ee;
 };

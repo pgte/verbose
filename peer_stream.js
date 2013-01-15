@@ -287,7 +287,13 @@ function PeerStream(options) {
       remoteReconnect.reconnect = false;
       remoteReconnect.disconnect();
     }
-  }
+  };
+
+  s.destroy =
+  function destroy() {
+    s.disconnect();
+    messages.end();
+  };
 
   return s;
 };

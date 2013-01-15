@@ -9,7 +9,7 @@ function clone(o) {
 var defaults =
 {
   timeout : 5e3,
-  bufferTimeout: 60 * 60 * 1e3, // 1 hour
+  bufferTimeout: 15 * 60 * 1e3, // 15 minutes
   bufferMax: 1000,
   acknowledgeInterval: 1e3
 };
@@ -23,7 +23,7 @@ function Options(options) {
       channel: channelName
     };
   }
-  if (! options.channel) throw new Error('No channel name');
+  if (! options.channel) options.channel = 'DEFAULT_CHANNEL';
 
   if (! options.node_id) options.node_id = uuid.v4();
 

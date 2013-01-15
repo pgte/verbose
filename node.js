@@ -12,6 +12,10 @@ exports =
 module.exports =
 function Node(options) {
 
+  // State
+  var ending = false;
+  var ended = false;
+
   /// Peer List
   var peerList = PeerList();
 
@@ -56,6 +60,26 @@ function Node(options) {
       s);
 
     stream.once('end', function() {
+
+      // Destroy stream after timeout
+      // if end was not intentional
+      if (! ending) {
+        var inactivityTimeout = setTimeout(function() {
+          stream.destroy();
+          removePeer(stream);
+        }, options.bufferTimeout);
+
+        // If stream is replaced by another stream
+        // (which probably happened because of a reconnect)
+        // we cancel the timeout
+        // so that buffers don't get removed
+        stream.once('_replaced', function() {
+          clearTimeout(inactivityTimeout);
+        });        
+      } else {
+        ended = true;
+      }
+
       p.end(); // stop event propagation
       s.removeListener('_end', onEnd);
       s.removeListener('_disconnect', onDisconnect);
@@ -64,6 +88,8 @@ function Node(options) {
 
     // on end
     function onEnd() {
+      if (ended) return;
+      ending = true;
       stream.end();
     }
 
@@ -75,8 +101,14 @@ function Node(options) {
     s.on('_disconnect', onDisconnect);
   }
 
-  
-  /// Add Peer
+
+  /// Add and Remove Peer
+
+  function removePeer(peer) {
+    if (peer.node_id) {
+      peerList.remove(peer.node_id);
+    }
+  }
 
   function addPeer(peerId, peerStream) {
     var existingPeer = peerList.get(peerId);
@@ -84,9 +116,15 @@ function Node(options) {
       peerStream.takeMessages(existingPeer.pendingMessages());
       peerStream.lastMessageId = existingPeer.lastMessageId;
       peerStream.connectedTimes += existingPeer.connectedTimes;
+      existingPeer.emit('_replaced');
     }
     peerList.add(peerId, peerStream);
   }
+
+  s.peers =
+  function peers() {
+    return peerList.all();
+  };
 
   /// Connect
 
@@ -111,6 +149,7 @@ function Node(options) {
   function handleServerConnection(stream) {
     var peerStream = PeerStream(options);
     peerStream.once('peerid', function(peerId) {
+      peerStream.node_id = peerId;
       addPeer(peerId, peerStream);
     });
     wireup(peerStream);

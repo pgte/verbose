@@ -161,7 +161,29 @@ test('server peer resends missed events', function(t) {
 
 });
 
-// test('after disconnected for a long time and a peer gets garbage-collected')
+test('after disconnected for a long time and a peer gets garbage-collected', function(t) {
+  t.plan(1);
+  
+  var port = helpers.randomPort();
+  
+  var c = Node(helpers.clone(options));
+  
+  var serverOptions = helpers.clone(options);
+  serverOptions.bufferTimeout = 100;
+  var s = Node(serverOptions);
+  
+  s.listen(port);
+  c.connect(port);
+  
+  c.once('initialized', function() {
+    t.equal(s.peers().length, 1, 'server has one peer');
+    c.end();
+    setTimeout(function() {
+      t.equal(s.peers().length, 0, 'server has no peers');
+      s.end();
+    }, 500);
+  });
+});
 
 // test('connect')
 
