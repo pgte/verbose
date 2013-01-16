@@ -14,9 +14,6 @@ exports =
 module.exports =
 function Node(options) {
 
-  // Message Hub
-  var messageHub = MessageHub();
-
   // State
   var ending = false;
   var ended = false;
@@ -40,6 +37,10 @@ function Node(options) {
   s.options =
   options =
   Options(options);
+
+
+  // Message Hub
+  var messageHub = MessageHub(options);
 
   
   /// Wire up stream
@@ -173,9 +174,16 @@ function Node(options) {
     
     s.on('_end', function() {
       ss.removeListener('connection', handleServerConnection);
-      ss.close();
+      try {
+        ss.close();
+      } catch(err) {
+        console.error(err);
+      }
     });
   };
+
+
+  /// End
 
   function end() {
     s.emit('_end');

@@ -10,6 +10,8 @@ var slice = Array.prototype.slice;
 exports =
 module.exports =
 function PeerStream(options, messageHub) {
+  var nodeId = options.node_id;
+
   var s = new Stream();
   s.writable = true;
   s.readable = true;
@@ -110,7 +112,7 @@ function PeerStream(options, messageHub) {
 
   function handshake(done) {
 
-    remoteEmitter.emit('peerid', options.channel, options.node_id);
+    remoteEmitter.emit('peerid', options.channel, nodeId);
     var timeout = setTimeout(function() {
       done(new Error(
         'timeout waiting for channel handshake. Waited for ' + options.timeout + ' ms'));
@@ -169,38 +171,9 @@ function PeerStream(options, messageHub) {
     var m;
     messages.acknowledge(id);
     while(m = messages.next()) {
-      write(m.message, m.id, m.meta);
+      write(m.message, m.meta);
     }
   }
-  
-
-  /// On Remote Message
-
-  function onRemoteMessage(msg, meta) {
-    if (! meta || ! meta.nodes || ! meta.id) throw new Error('missing meta info in message');
-    if (meta.nodes.indexOf(options.node_id) == -1) {
-      meta.nodes.push(options.node_id);
-      s.lastMessageId = meta.id;
-      messageHub.emit('message', msg, meta);
-      s.emit('data', msg);
-    }
-  }
-
-  function onRemoteAcknowledge(id) {
-    messages.acknowledge(id);
-    s.emit('acknowledge', id);
-  }
-
-
-  // On Message Hub Message
-
-  messageHub.on('message', function(msg, meta) {
-    if (meta.nodes.indexOf(options.node_id) == -1 &&
-        (! peerId || meta.nodes.indexOf(peerId) == -1))
-    {
-      remoteEmitter.emit('message', msg, meta);
-    }
-  });
 
 
   /// Buffer length
@@ -249,28 +222,86 @@ function PeerStream(options, messageHub) {
     s.once('disconnect', cleanup);
     s.once('end', cleanup);
   }
+  
+
+  /// On Remote Message
+
+  function onRemoteMessage(msg, meta) {
+    if (! meta || ! meta.nodes || ! meta.id) throw new Error('missing meta info in message');
+    if (meta.nodes.indexOf(nodeId) == -1) {
+      meta.nodes.push(nodeId);
+      s.lastMessageId = meta.id;
+      messageHub.emit('message', msg, meta);
+      s.emit('data', msg);
+    }
+  }
+
+  function onRemoteAcknowledge(id) {
+    messages.acknowledge(id);
+    s.emit('acknowledge', id);
+  }
 
 
   /// Write
 
-  function write(msg, id, meta, done) {
+  function write(msg, meta, done) {
     remoteEmitter.emit('message', msg, meta);
     if (done) done();
   };
 
+  var discardNextMessage = false;
+
   var enqueueWrite =
   s.write =
-  function enqueueWrite(msg) {
-    var id = uuid.v4();
-    var meta = {
-      id: id,
-      nodes: [options.node_id]
-    };
-    messages.push(msg, id, meta);
-    enqueue(write, msg, id, meta);
+  function enqueueWrite(msg, meta, dontHub) {
+    if (! meta) {
+      meta = {
+        id: uuid.v4(), // new message id
+        nodes: []
+      };
+    }
+    if (meta.nodes.indexOf(peerId) > -1) return;
+
+    messages.push(msg, meta.id, meta);
+    
+    if (! dontHub) {
+      discardNextMessage = true;
+      messageHub.emit('message', msg, meta);
+    }
+    enqueue(write, msg, meta);
     process.nextTick(flush);
     return false;
   };
+
+  
+  /// On Message Hub Message
+
+  function onMessageHubMessage(msg, meta) {
+    if (ended) return;
+    if (discardNextMessage) {
+      discardNextMessage = false;
+      return;
+    }
+
+    if (! meta) {
+      meta = {
+        id: uuid.v4(), // new message id
+        nodes: []
+      };
+    }
+    meta.nodes.push(nodeId);
+    if (meta.nodes.indexOf(peerId) > -1) return;
+    enqueueWrite(msg, meta, true);
+  }
+  
+  s.on('initialized', function() {
+    messageHub.on('message', onMessageHubMessage);
+  });
+  
+  s.on('end', function() {
+    messageHub.removeListener('message', onMessageHubMessage);
+  });
+  
 
 
   /// End

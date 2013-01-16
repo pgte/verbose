@@ -10,7 +10,7 @@ var options = {
   node_id: 'NODE_ID_1',
   channel: 'CHANNEL_1',
   log:     function() {},
-  timeout: 2000,
+  timeout: 1000,
   acknowledgeInterval: 100
 };
 
@@ -20,7 +20,7 @@ test('handshakes', function(t) {
   
   var port = helpers.randomPort();
   var server = MockServer(options);
-  var s = PeerStream(options);
+  var s = PeerStream(options, helpers.hub());
   
   s.connect(port)
   
@@ -59,7 +59,7 @@ test('errors on wrong channel', function(t) {
   var server = MockServer(serverOptions);
 
   var port = helpers.randomPort();
-  var s = PeerStream(options);
+  var s = PeerStream(options, helpers.hub());
   
   s.connect(port)
   
@@ -79,7 +79,7 @@ test('sends message', function(t) {
   var server = MockServer(options);
 
   var port = helpers.randomPort();
-  var s = PeerStream(options);
+  var s = PeerStream(options, helpers.hub());
   
   s.write('this is a message');
   s.end();
@@ -100,7 +100,7 @@ test('supports pipe', function(t) {
   var server = MockServer(options);
 
   var port = helpers.randomPort();
-  var s = PeerStream(options);
+  var s = PeerStream(options, helpers.hub());
 
   s.connect(port);
   es.pipeline(
@@ -128,7 +128,7 @@ test('reconnects', function(t) {
   var server = MockServer(options);
 
   var port = helpers.randomPort();
-  var s = PeerStream(options);
+  var s = PeerStream(options, helpers.hub());
 
   server.listen(port);
   s.connect(port);
@@ -158,7 +158,7 @@ test('emits data on server message', function(t) {
   var server = MockServer(options);
 
   var port = helpers.randomPort();
-  var s = PeerStream(options);
+  var s = PeerStream(options, helpers.hub());
 
   var collected = [];
   s.on('data', function(d) {
@@ -186,7 +186,7 @@ test('acknowledges message and removes from buffer', function(t) {
   var server = MockServer(options);
 
   var port = helpers.randomPort();
-  var s = PeerStream(options);
+  var s = PeerStream(options, helpers.hub());
 
   setTimeout(function() {
     t.ok(server.acknowledges.length > 0, 'server got acknowledges');
@@ -212,7 +212,7 @@ test('emits acknowledges', function(t) {
   var server = MockServer(options);
 
   var port = helpers.randomPort();
-  var s = PeerStream(options);
+  var s = PeerStream(options, helpers.hub());
   s.write('abc');
   s.write('def');
 
@@ -232,7 +232,6 @@ test('emits acknowledges', function(t) {
   server.listen(port);
 });
 
-
 test('buffering messages time out', function(t) {
   t.plan(2);
   
@@ -243,7 +242,7 @@ test('buffering messages time out', function(t) {
   var server = MockServer(opts);
   server.acknowledge = false;
   var port = helpers.randomPort();
-  var s = PeerStream(opts);
+  var s = PeerStream(opts, helpers.hub());
 
   // safeguard to ensure the server is not acknowledging
   s.on('acknowledge', helpers.shouldNot('should not acknowledge'));
@@ -270,7 +269,7 @@ test('synchronizes missing messages', function(t) {
   
   var server = MockServer(options);
   var port = helpers.randomPort();
-  var s = PeerStream(options);
+  var s = PeerStream(options, helpers.hub());
 
   server.acknowledge = false;
   server.listen(port);
@@ -313,7 +312,7 @@ test('reconnects on timeout', function(t) {
 
   var server = MockServer(options);
   var port = helpers.randomPort();
-  var s = PeerStream(options);
+  var s = PeerStream(options, helpers.hub());
 
   server.listen(port);
 
@@ -347,7 +346,7 @@ test('emits the end event when ends', function(t) {
 
   var server = MockServer(options);
   var port = helpers.randomPort();
-  var s = PeerStream(options);
+  var s = PeerStream(options, helpers.hub());
 
   server.listen(port);
 
@@ -369,7 +368,7 @@ test('emits the end event only once', function(t) {
 
   var server = MockServer(options);
   var port = helpers.randomPort();
-  var s = PeerStream(options);
+  var s = PeerStream(options, helpers.hub());
 
   server.listen(port);
 
