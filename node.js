@@ -22,7 +22,6 @@ function Node(options) {
   var peerList = PeerList();
 
   /// Exported stream
-
   function identity(data) {
     this.emit('data', data);
   }
@@ -30,11 +29,19 @@ function Node(options) {
   var outStream = through(identity);
 
   var s = duplexer(inStream, outStream); // exported stream
-  
+
+
+  /// Emitter
+  var e = StreamEmitter(s);
+  e.stream = s;
+
+
+  /// Internal Commands Emitter
+  var commands = new EventEmitter();
+
 
   /// Options
-  
-  s.options =
+  e.options =
   options =
   Options(options);
 
@@ -84,8 +91,8 @@ function Node(options) {
 
       p.end(); // stop event propagation
 
-      s.removeListener('_end', onEnd);
-      s.removeListener('_disconnect', onDisconnect);
+      commands.removeListener('end', onEnd);
+      commands.removeListener('disconnect', onDisconnect);
     });
 
     // on end
@@ -99,8 +106,8 @@ function Node(options) {
       stream.disconnect();
     }
 
-    s.on('_end', onEnd);
-    s.on('_disconnect', onDisconnect);
+    commands.on('end', onEnd);
+    commands.on('disconnect', onDisconnect);
   }
 
 
@@ -123,7 +130,7 @@ function Node(options) {
     peerList.add(peerId, peerStream);
   }
 
-  s.peers =
+  e.peers =
   function peers() {
     return peerList.all();
   };
@@ -131,7 +138,7 @@ function Node(options) {
 
   /// Connect
 
-  s.connect =
+  e.connect =
   function connect(port, host, callback) {
     if (ending || ended) throw new Error('Ended');
     if (typeof host == 'function') {
@@ -164,7 +171,7 @@ function Node(options) {
     });
   }
 
-  s.listen =
+  e.listen =
   function listen(port, host, callback) {
     if (typeof host == 'function') {
       callback = host;
@@ -180,7 +187,7 @@ function Node(options) {
       s.emit('listening', port, host);
     });
     
-    s.on('_end', function() {
+    commands.on('end', function() {
       ss.removeListener('connection', handleServerConnection);
       try {
         ss.close();
@@ -194,27 +201,14 @@ function Node(options) {
   /// End
 
   function end() {
-    s.emit('_end');
+    commands.emit('end');
   };
-  s.end = end;
+  e.end = end;
 
-  s.disconnect =
+  e.disconnect =
   function disconnect() {
-    s.emit('_disconnect');
+    commands.emit('disconnect');
   };
 
-
-  /// Emitter
-
-  var emitter;
-  s.emitter = 
-  function () {
-    if (! emitter) {
-      emitter = StreamEmitter(s);
-      emitter.end = end;
-    }
-    return emitter;
-  }
-  
-  return s;
+  return e;
 };

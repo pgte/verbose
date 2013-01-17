@@ -17,15 +17,15 @@ test('server emits', function(t) {
   c.connect(port);
   s.listen(port);
 
-  c.write('message 1');
-  c.write('message 2');
+  c.emit('message 1');
+  c.emit('message 2');
 
   var collected = []; // collect data from server here
 
-  s.on('data', function(d) {
+  s.stream.on('data', function(d) {
     collected.push(d);
     if (collected.length >= 2) {
-      t.deepEqual(collected, ['message 1', 'message 2']);
+      t.deepEqual(collected, [["message 1"], ["message 2"]]);
       s.end();
       c.end();
     }
@@ -41,24 +41,23 @@ test('client emits', function(t) {
   c.connect(port);
 
   s.listen(port, function() {
-    c.on('initialized', function() {
-      s.write('message 2.1');
-      s.write('message 2.2');
+    c.stream.on('initialized', function() {
+      s.emit('message 2.1');
+      s.emit('message 2.2');
     });
   });
 
   var collected = [];
-  c.on('data', function(d) {
+  c.stream.on('data', function(d) {
     collected.push(d);
     if (collected.length >= 2) {
-      t.deepEqual(collected, ['message 2.1', 'message 2.2']);
+      t.deepEqual(collected, [['message 2.1'], ['message 2.2']]);
       c.end();
       s.end();
     }
   });
 
 });
-
 
 test('several clients connected to server', function(t) {
 
@@ -71,19 +70,20 @@ test('several clients connected to server', function(t) {
   c2.connect(port);
   s.listen(port);
 
-  c1.write('abc');
-  c2.write('def');
-  c1.write('ghi');
-  c2.write('jkl');
+  c1.emit('abc');
+  c2.emit('def');
+  c1.emit('ghi');
+  c2.emit('jkl');
 
   var collected = [];
-  s.on('data', function(d) {
-    collected.push(d);
+  s.stream.on('data', function(d) {
+    collected.push(JSON.stringify(d));
     if (collected.length >= 4) {
-      t.ok(collected.indexOf('abc') >= 0, 'got message 1');
-      t.ok(collected.indexOf('def') >= 0, 'got message 2');
-      t.ok(collected.indexOf('ghi') >= 0, 'got message 3');
-      t.ok(collected.indexOf('jkl') >= 0, 'got message 4');
+      console.log('collected:', collected);
+      t.ok(collected.indexOf('["abc"]') >= 0, 'got message 1');
+      t.ok(collected.indexOf('["def"]') >= 0, 'got message 2');
+      t.ok(collected.indexOf('["ghi"]') >= 0, 'got message 3');
+      t.ok(collected.indexOf('["jkl"]') >= 0, 'got message 4');
       c1.end();
       c2.end();
       s.end();
@@ -91,7 +91,6 @@ test('several clients connected to server', function(t) {
   });
 
 });
-
 
 test('server peer resends missed events', function(t) {
   t.plan(4);
@@ -102,11 +101,12 @@ test('server peer resends missed events', function(t) {
 
   var reconnected = false;
   var collected = [];
-  c1.on('data', function(d) {
+  c1.stream.on('data', function(d) {
     t.ok(reconnected, 'already reconnected');
-    collected.push(d);
+    collected.push(JSON.stringify(d));
     if (collected.length >= 3) {
-      t.deepEqual(collected, ['abc', 'def', 'ghi']);
+      console.log('collected:', collected);
+      t.deepEqual(collected, ['["abc"]', '["def"]', '["ghi"]']);
       c1.end();
       s.end();
     }
@@ -114,12 +114,12 @@ test('server peer resends missed events', function(t) {
 
   c1.connect(port);
 
-  c1.once('initialized', function() {
-    s.write('abc');
-    s.write('def');
-    s.write('ghi');
+  c1.stream.once('initialized', function() {
+    s.emit('abc');
+    s.emit('def');
+    s.emit('ghi');
     c1.disconnect();
-    c1.once('disconnect', function() {
+    c1.stream.once('disconnect', function() {
       reconnected = true;
       c1.connect(port);
     });
@@ -142,7 +142,7 @@ test('after disconnected for a long time and a peer gets garbage-collected', fun
   s.listen(port);
   c.connect(port);
   
-  c.once('initialized', function() {
+  c.stream.once('initialized', function() {
     t.equal(s.peers().length, 1, 'server has one peer');
     c.end();
     setTimeout(function() {
@@ -166,15 +166,15 @@ test('client connected to several servers', function(t) {
   c1.connect(port1);
   c1.connect(port2);
 
-  c1.write('abc');
-  c1.write('def');
-  c1.write('ghi');
+  c1.emit('abc');
+  c1.emit('def');
+  c1.emit('ghi');
 
   var validated = 0;
   function validateCollected(collected) {
-    t.ok(collected.indexOf('abc') >= 0, 'got message 1');
-    t.ok(collected.indexOf('def') >= 0, 'got message 2');
-    t.ok(collected.indexOf('ghi') >= 0, 'got message 3');
+    t.ok(collected.indexOf('["abc"]') >= 0, 'got message 1');
+    t.ok(collected.indexOf('["def"]') >= 0, 'got message 2');
+    t.ok(collected.indexOf('["ghi"]') >= 0, 'got message 3');
     validated ++;
     if (validated >= 2) {
       c1.end();
@@ -184,44 +184,39 @@ test('client connected to several servers', function(t) {
   }
 
   var collected1 = [];
-  s1.on('data', function(d) {
-    console.log('s1 data', d);
-    collected1.push(d);
+  s1.stream.on('data', function(d) {
+    collected1.push(JSON.stringify(d));
     if (collected1.length >= 3) validateCollected(collected1);
   });
 
   var collected2 = [];
-  s2.on('data', function(d) {
-    console.log('s2 data', d);
-    collected2.push(d);
+  s2.stream.on('data', function(d) {
+    collected2.push(JSON.stringify(d));
     if (collected2.length >= 3) validateCollected(collected2);
   });
 
 });
 
 test('same emitter does not emit back', function(t) {
-  t.plan(1);
+  t.plan(3);
 
   var s = Node(helpers.clone(options));
-  var se = s.emitter();
   var c = Node(helpers.clone(options));
-  var ce = c.emitter();
   var port = helpers.randomPort();
 
   c.connect(port);
   s.listen(port);
 
-  ce.on('ABC', helpers.shouldNot('emit back'));
+  c.on('ABC', helpers.shouldNot('emit back'));
 
-  se.on('ABC', function() {
-    t.ok(true, 'server received event');
-    ce.end();
-    se.end();
+  s.on('ABC', function(a, b, _c) {
+    t.equal(a, 'a');
+    t.equal(b, 'b');
+    t.type(_c, 'undefined');
+    c.end();
+    s.end();
   });
 
-  c.once('initialized', function() {
-    console.log('initialized');
-    ce.emit('ABC');
-  });
+  c.emit('ABC', 'a', 'b');
 
 });
