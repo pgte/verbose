@@ -83,9 +83,9 @@ function Node(options) {
       }
 
       p.end(); // stop event propagation
+
       s.removeListener('_end', onEnd);
       s.removeListener('_disconnect', onDisconnect);
-      s.emit('end');
     });
 
     // on end
@@ -133,6 +133,7 @@ function Node(options) {
 
   s.connect =
   function connect(port, host, callback) {
+    if (ending || ended) throw new Error('Ended');
     if (typeof host == 'function') {
       callback = host;
       host = undefined;
@@ -157,6 +158,10 @@ function Node(options) {
     });
     wireup(peerStream);
     peerStream.handleStream(stream);
+    
+    stream.on('end', function() {
+      peerStream.emit('end');
+    });
   }
 
   s.listen =

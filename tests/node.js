@@ -60,41 +60,6 @@ test('client emits', function(t) {
 });
 
 
-test('initialized and end events happen only once', function(t) {
-  t.plan(4);
-  
-  var s = Node(helpers.clone(options));
-  var c = Node(helpers.clone(options));
-  var port = helpers.randomPort();
-  
-  c.connect(port);
-
-  var initializedCount = 0;
-  function initialized() {
-    initializedCount ++;
-    t.ok(initializedCount <= 2, 'doesnt emit initialized more than once');
-    if (initializedCount >= 2) {
-      c.once('end', function() {
-        t.ok(true, 'c.ended');
-        c.on('end', helpers.shouldNot('c.end more than once'));
-      });
-      s.once('end', function() {
-        t.ok(true, 's.ended');
-        s.on('end', helpers.shouldNot('s.end more than once'));
-      });
-      c.end();
-      s.end();
-    }
-
-  }
-  
-  c.on('initialized', initialized);
-  s.on('initialized', initialized);
-  
-  s.listen(port);
-});
-
-
 test('several clients connected to server', function(t) {
 
   t.plan(4);
@@ -126,6 +91,7 @@ test('several clients connected to server', function(t) {
   });
 
 });
+
 
 test('server peer resends missed events', function(t) {
   t.plan(4);
@@ -160,6 +126,7 @@ test('server peer resends missed events', function(t) {
   });
 
 });
+
 
 test('after disconnected for a long time and a peer gets garbage-collected', function(t) {
   t.plan(1);

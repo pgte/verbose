@@ -294,7 +294,7 @@ function PeerStream(options, messageHub) {
     enqueueWrite(msg, meta, true);
   }
   
-  s.on('initialized', function() {
+  s.once('initialized', function() {
     messageHub.on('message', onMessageHubMessage);
   });
   

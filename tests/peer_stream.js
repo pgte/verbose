@@ -151,6 +151,7 @@ test('reconnects', function(t) {
 
 });
 
+return;
 
 test('emits data on server message', function(t) {
   t.plan(1);
