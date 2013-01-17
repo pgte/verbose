@@ -24,6 +24,9 @@ function create(options) {
 
   m.push =
   function push(message, id, meta) {
+    if (! message || ! id || ! meta) {
+      throw new Error('invalid arguments, something is missing');
+    }
     messages[id] = { message: message, id: id, meta: meta, expires: Date.now() + options.timeout };
     messageIds.push(id);
     if (messageIds.length > options.maxMessages) {
@@ -73,8 +76,11 @@ function create(options) {
     if (messageIds.length) {
       var now = Date.now();
       var mId = messageIds[0];
-      var expires = messages[mId].expires;
-      timeout = setTimeout(expire, expires - now);
+      var m = mId && messages[mId];
+      if (m) {
+        var expires = m.expires;
+        timeout = setTimeout(expire, expires - now);        
+      }
     }
   }
 
