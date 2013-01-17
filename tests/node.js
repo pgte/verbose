@@ -7,7 +7,7 @@ var options = {
   timeout: 5e3
 };
 
-  
+
 test('server emits', function(t) {
   t.plan(1);
   var s = Node(helpers.clone(options));
@@ -228,6 +228,33 @@ test('client connected to several servers', function(t) {
     console.log('s2 data', d);
     collected2.push(d);
     if (collected2.length >= 3) validateCollected(collected2);
+  });
+
+});
+
+test('same emitter does not emit back', function(t) {
+  t.plan(1);
+
+  var s = Node(helpers.clone(options));
+  var se = s.emitter();
+  var c = Node(helpers.clone(options));
+  var ce = c.emitter();
+  var port = helpers.randomPort();
+
+  c.connect(port);
+  s.listen(port);
+
+  ce.on('ABC', helpers.shouldNot('emit back'));
+
+  se.on('ABC', function() {
+    t.ok(true, 'server received event');
+    ce.end();
+    se.end();
+  });
+
+  c.once('initialized', function() {
+    console.log('initialized');
+    ce.emit('ABC');
   });
 
 });
