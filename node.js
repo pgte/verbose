@@ -182,10 +182,10 @@ function Node(options) {
     ss.removeListener('connection', handleServerConnection);
     ss.on('connection', handleServerConnection);
     if (callback) ss.once('listening', callback);
-    ss.listen(port, host);
     ss.once('listening', function() {
       s.emit('listening', port, host);
     });
+    ss.listen(port, host);
     
     commands.on('end', function() {
       ss.removeListener('connection', handleServerConnection);
