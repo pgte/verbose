@@ -1,9 +1,12 @@
 var EventEmitter = require('events').EventEmitter;
+
 var server = require('./server');
 var Options = require('./options');
 var PeerStream = require('./peer_stream');
 var PeerList = require('./peer_list');
 var MessageHub = require('./message_hub');
+var Transport = require('./transport');
+
 var StreamEmitter = require('duplex-emitter/emitter');
 var Stream = require('stream');
 var duplexer = require('duplexer');
@@ -136,28 +139,10 @@ function Node(options) {
   };
 
 
-  /// Connect
 
-  e.connect =
-  function connect(port, host, callback) {
-    if (ending || ended) throw new Error('Ended');
-    if (typeof host == 'function') {
-      callback = host;
-      host = undefined;
-    }
-    var peerStream = PeerStream(options, messageHub);
-    peerStream.once('peerid', function(peerId) {
-      addPeer(peerId, peerStream);
-    });
-    peerStream.connect(port, host, callback);
-    wireup(peerStream);
-    return peerStream;
-  };
+  /// Handle Connection
 
-
-  /// Listen
-
-  function handleServerConnection(stream) {
+  function handleConnection(stream) {
     var peerStream = PeerStream(options, messageHub);
     peerStream.once('peerid', function(peerId) {
       peerStream.node_id = peerId;
@@ -171,26 +156,41 @@ function Node(options) {
     });
   }
 
+
+  /// Connect
+
+  e.connect =
+  function connect(port, host, callback) {
+    if (ending || ended) throw new Error('Ended');
+    if (typeof host == 'function') {
+      callback = host;
+      host = undefined;
+    }
+    var recon = options.transport.connect(port, host, callback);
+    recon.on('connect', handleConnection);
+  }; 
+
+
+  /// Listen
+
   e.listen =
   function listen(port, host, callback) {
+    if (ending || ended) throw new Error('Ended');
     if (typeof host == 'function') {
       callback = host;
       host = undefined;
     }
 
-    var ss = server.create();
-    ss.removeListener('connection', handleServerConnection);
-    ss.on('connection', handleServerConnection);
-    if (callback) ss.once('listening', callback);
-    ss.once('listening', function() {
+    var server = options.transport.listen(port, host, callback);
+    server.on('connection', handleConnection);
+    server.once('listening', function() {
       s.emit('listening', port, host);
     });
-    ss.listen(port, host);
     
     commands.on('end', function() {
-      ss.removeListener('connection', handleServerConnection);
+      server.removeListener('connection', handleConnection);
       try {
-        ss.close();
+        server.close();
       } catch(err) {
         console.error(err);
       }

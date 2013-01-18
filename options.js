@@ -1,4 +1,5 @@
 var uuid = require('node-uuid');
+var Transport = require('./transport');
 
 var defaults =
 {
@@ -31,6 +32,10 @@ function Options(opts) {
   merge(options, opts);
 
   if (! options.node_id) options.node_id = uuid.v4();
+
+  if (! options.transport) options.transport = 'tcp';
+
+  if (typeof options.transport == 'string') options.transport = Transport[options.transport];
 
   return options;
 }

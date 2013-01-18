@@ -16,40 +16,23 @@ var options = {
 
 
 test('handshakes', function(t) {
-  t.plan(3);
+  t.plan(1);
   
   var port = helpers.randomPort();
   var server = MockServer(options);
-  var s = PeerStream(options, helpers.hub());
-  
-  s.connect(port)
-  
-  async.parallel([
-    
-    function(done) {
-      s.once('connect', function() {
-        t.ok(true, 'got connection');
-        done();
-      });
-    },
-
-    function(done) {
-      s.once('initialized', function() {
-        t.ok(true, 'initialized');
-        done();
-      });
-    }
-
-  ], done);
-  
+  var recon = helpers.connect(port, options, helpers.hub(), function(s) {
+    console.log('here');
+    s.once('initialized', function() {
+      t.ok(true, 'initialized');
+      recon.reconnect = false;
+      s.end();
+      server.close();
+    });
+  });
   server.listen(port);
-
-  function done(err) {
-    t.ok(! err);
-    s.end();
-    server.close();    
-  }
 });
+
+return;
 
 test('errors on wrong channel', function(t) {
   t.plan(2);
@@ -150,8 +133,6 @@ test('reconnects', function(t) {
   });
 
 });
-
-return;
 
 test('emits data on server message', function(t) {
   t.plan(1);
