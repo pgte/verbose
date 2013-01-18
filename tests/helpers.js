@@ -47,12 +47,14 @@ function hub() {
 };
 
 exports.connect =
-function(port, options, hub, callback) {
-  console.log(arguments);
-  var recon = reconnect(function(stream) {
-    var ps = PeerStream(stream, options, hub);
+function(port, options, callback) {
+  var recon = reconnect();
+  recon.on('connect', function(stream) {
+    recon.reconnect = false;
+    var ps = PeerStream(stream, options);
     callback(ps);
-  }).connect(port);
+  });
+  recon.connect(port);
 
   return recon;
 }

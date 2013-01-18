@@ -2,89 +2,111 @@ var Stream = require('stream');
 var propagate = require('propagate');
 var domain = require('domain');
 var uuid = require('node-uuid');
+
+var Options = require('./options');
 var Messages = require('./messages');
-var slice = Array.prototype.slice;
+var Protocol = require('./peer_protocol');
+
 
 exports =
 module.exports =
-function PeerStream(remoteStream, options, messageHub, lastMessageId, isReconnect) {
+function PeerStream(remoteStream, opts) {
+  var options = Options(opts);
+  
   var nodeId = options.node_id;
 
   var s = new Stream();
   s.writable = true;
   s.readable = true;
-  s.connectedTimes = 0;
-  s.lastMessageId = undefined;
 
-  var remoteReconnect;
-  var remoteEmitter;
-  var peerId;
-  var messages = Messages({
-    maxMessages: options.bufferMax,
-    timeout:     options.bufferTimeout
-  });
-  var ended = false;
-  var initialized = false;
+  /// Domain and error handling
 
+    var d = domain.create();
+    d.add(remoteStream);
+    d.on('error', function(err) {
+      if (err.code === 'EPIPE' || err.code === 'ECONNRESET') {
+        // The server was not there.
+        // Let's just quit and let reconnect kick in
+        remoteStream.end();
+      } else s.emit('error', err);
+    });
 
-  // Domain and error handling
-  var d = domain.create();
-  d.add(remoteStream);
-  d.on('error', function(err) {
-    if (err.code === 'EPIPE' || err.code === 'ECONNRESET') {
-      // The server was not there.
-      // Let's just quit and let reconnect kick in
-      remoteStream.end();
-    } else s.emit('error', err);
-  });
+  
+  /// Messages Buffer
 
+    var messages = Messages({
+      maxMessages: options.bufferMax,
+      timeout:     options.bufferTimeout
+    });
 
-  /// Messages
+    s.takeMessages =
+    function takeMessages(_messages) {
+      messages = _messages;
+    };
 
-  s.takeMessages =
-  function takeMessages(_messages) {
-    messages = _messages;
-  };
+    s.pendingMessages =
+    function pendingMessages() {
+      return messages;
+    };
 
-  s.pendingMessages =
-  function pendingMessages() {
-    return messages;
-  };
-
-
-
-  /// Resend since
-
-  function resendSince(id) {
-    var m;
-    messages.acknowledge(id);
-    while(m = messages.next()) {
-      proto.message(m.message, m.meta);
+    /// Resend since
+    function resendSince(id) {
+      var m;
+      messages.acknowledge(id);
+      while(m = messages.next()) {
+        protocol.message(m.message, m.meta);
+      }
     }
-  }
+
+    /// Buffer length
+    s.bufferLength =
+    function bufferLength() {
+      return messages.length();
+    };
 
 
-  /// Buffer length
 
-  s.bufferLength =
-  function bufferLength() {
-    return messages.length();
-  };
+  /// Protocol
 
-  /// Init
-
-  function init() {
-    remoteEmitter.on('message', onRemoteMessage);
-    remoteEmitter.on('ack', onRemoteAcknowledge);
+    var protocol = Protocol(remoteStream, options, s.lastMessageId, s.isReconnect);
     
-    // Send Acknowledge Interval
+    function onError(err) {
+      s.emit('error', err);
+    }
+
+    protocol.on('error', onError);
+
+    protocol.once('peerid', function(peerId) {
+      s.emit('peerid', peerId);
+    });
+    
+    protocol.once('initialized', function(lastMessageId, isReconnect) {
+      if (lastMessageId || isReconnect) resendSince(lastMessageId);
+      s.emit('initialized');
+    });
+
+    function onRemoteMessage(msg, meta) {
+      s.emit('data', msg);
+      s.lastMessageId = meta.id;
+    }
+
+    function onRemoteAcknowledge(id) {
+      messages.acknowledge(id);
+      resetAcknowledgeTimeout();
+      s.emit('acknowledge', id);
+    }
+
+    protocol.on('message', onRemoteMessage);
+    protocol.on('acknowledge', onRemoteAcknowledge);
+
+    // Propagate some events from the protocol into the stream
+    propagate(['drain'], protocol, s);
+
     function acknowledge() {
-      remoteEmitter.emit('ack', s.lastMessageId);
+      if (s.lastMessageId) protocol.acknowledge(s.lastMessageId);
     }
     var ackInterval = setInterval(acknowledge, options.acknowledgeInterval);
 
-
-    //  Acknowledge timeout
     var ackTimeout;
     function resetAcknowledgeTimeout() {
       if (ackTimeout) clearTimeout(ackTimeout);
@@ -94,32 +116,23 @@ function PeerStream(remoteStream, options, messageHub, lastMessageId, isReconnec
         if (remoteStream) remoteStream.destroy();
       }, options.timeout);
     }
-    s.on('acknowledge', resetAcknowledgeTimeout);
-    resetAcknowledgeTimeout();
 
-    // Remove all listeners once the stream gets disconnected
-    function cleanup() {
-      initialized = false;
-      remoteEmitter.removeListener('message', onRemoteMessage);
-      remoteEmitter.removeListener('ack', onRemoteAcknowledge);
-      s.removeListener('acknowledge', resetAcknowledgeTimeout);
+    protocol.once('end', function() {
+      protocol.removeListener('error', onError);
+      protocol.removeListener('message', onRemoteMessage);
+      protocol.removeListener('acknowledge', onRemoteAcknowledge);
       clearInterval(ackInterval);
       if (ackTimeout) clearTimeout(ackTimeout);
-    }
-    
-    s.once('disconnect', cleanup);
-    s.once('end', cleanup);
-  }
-  
+      ackTimeout = undefined;
+      messages.end();
+      s.emit('end');
+    });
 
-  /// On Message Hub Message
 
-  function onMessageHubMessage(msg, meta) {
-    if (ended) return;
-    if (discardNextMessage) {
-      discardNextMessage = false;
-      return;
-    }
+  /// Write
+
+  s.write =
+  function write(d, meta) {
 
     if (! meta) {
       meta = {
@@ -127,72 +140,19 @@ function PeerStream(remoteStream, options, messageHub, lastMessageId, isReconnec
         nodes: []
       };
     }
-    meta.nodes.push(nodeId);
-    if (meta.nodes.indexOf(peerId) > -1) return;
-    enqueueWrite(msg, meta, true);
-  }
-  
-  s.once('initialized', function() {
-    messageHub.on('message', onMessageHubMessage);
-  });
-  
-  s.on('end', function() {
-    messageHub.removeListener('message', onMessageHubMessage);
-  });
-  
 
+    messages.push(d, meta.id, meta);
+    return protocol.message(d, meta);
+  };
 
   /// End
 
-  function end(done) {
-    if (ended) return done();
-    ended = true;
-    s.writable = false;
-    messages.end();
-    s.end();
-    s.emit('end');
-    if (done) done();
-  }
-
   s.end =
   function enqueueEnd(msg) {
-    if (msg) enqueueWrite(msg);
-    enqueue(end);
-    process.nextTick(flush);
-    return false;
+    protocol.end();
   };
 
-  s.destroy =
-  function destroy() {
-    s.disconnect();
-    messages.end();
-  };
-
-
-  /// Handle Stream
-
-  //s.connectedTimes ++;
-
-  var protocol = Protocol(remoteStream, options, lastMessageId, isReconnect);
-  proto.initialize();
-  
-  proto.once('peerid', function(peerId) {
-    s.emit('peerid', peerId);
-  });
-  
-  proto.once('initialized', function(lastMessageId, isReconnect) {
-    if (lastMessageId || isReconnect) resendSince(lastMessageId);
-    s.emit('initialized');
-  });
-
-  // Do handshake
-  handshake(function(err) {
-    if (err) return s.emit('error', err);
-    init();
-    process.nextTick(flush);
-  });
-
-
+  protocol.initialize();
 
   return s;
 };

@@ -29,7 +29,7 @@ function PeerProtocol(remoteStream, options, lastMessageId, isReconnect) {
   }
 
   function flush(err) {
-    if (err) return s.emit('error', err);
+    if (err) return e.emit('error', err);
     if (queue.length) {
       var action = queue[0];
       var method = action[0];
@@ -56,13 +56,15 @@ function PeerProtocol(remoteStream, options, lastMessageId, isReconnect) {
 
   /// Initialize
 
+  var timeout;
+
   e.initialize =
   function initialize() {
     if (initialized) throw new Error('Already initialized');
     if (ended)  throw new Error('Ended');
 
     remoteEmitter.emit('peerid', options.channel, nodeId);
-    var timeout = setTimeout(function() {
+    timeout = setTimeout(function() {
       e.emit('error', new Error(
         'timeout waiting for channel handshake. Waited for ' + options.timeout + ' ms'));
       e.end();
@@ -94,7 +96,7 @@ function PeerProtocol(remoteStream, options, lastMessageId, isReconnect) {
     });
 
     remoteEmitter.on('error', function(err) {
-      s.emit('error', err);
+      e.emit('error', err);
     });    
   }
 
@@ -106,21 +108,13 @@ function PeerProtocol(remoteStream, options, lastMessageId, isReconnect) {
     if (! meta || ! meta.nodes || ! meta.id) throw new Error('missing meta info in message');
     if (meta.nodes.indexOf(nodeId) == -1) {
       meta.nodes.push(nodeId);
-      s.emit('message', msg, meta);
+      e.emit('message', msg, meta);
     }
   }
-
-  /// On Remote Acknowledge
-
-  function onRemoteAcknowledge(id) {
-    s.emit('acknowledge', id);
-  }
-
 
   /// Send Message
 
   function message(msg, meta, done) {
-    console.log('sending out message', msg);
     remoteEmitter.emit('message', msg, meta);
     if (done) done();
   };
@@ -142,12 +136,28 @@ function PeerProtocol(remoteStream, options, lastMessageId, isReconnect) {
   };
 
 
+  /// Acknowledge
+
+  e.acknowledge =
+  function acknowledge(id) {
+    remoteEmitter.emit('ack', id);
+  };
+
+
+  /// On Remote Acknowledge
+
+  function onRemoteAcknowledge(id) {
+    e.emit('acknowledge', id);
+  }
+
+
   /// End
   e.end =
   function end() {
     if (ended) return;
+    if (timeout) clearTimeout(timeout);
     remoteStream.end();
-    e.emit('end');
+    remoteStream.emit('end');
   };
 
 
@@ -157,9 +167,11 @@ function PeerProtocol(remoteStream, options, lastMessageId, isReconnect) {
   remoteEmitter.on('ack', onRemoteAcknowledge);
 
   remoteStream.once('end', function() {
+    if (ended) return;
     ended = true;
     remoteEmitter.removeListener('message', onRemoteMessage);
     remoteEmitter.removeListener('ack', onRemoteAcknowledge);
+    e.emit('end');
   });
 
 

@@ -20,19 +20,15 @@ test('handshakes', function(t) {
   
   var port = helpers.randomPort();
   var server = MockServer(options);
-  var recon = helpers.connect(port, options, helpers.hub(), function(s) {
-    console.log('here');
+  var recon = helpers.connect(port, options, function(s) {
     s.once('initialized', function() {
       t.ok(true, 'initialized');
-      recon.reconnect = false;
       s.end();
       server.close();
     });
   });
   server.listen(port);
 });
-
-return;
 
 test('errors on wrong channel', function(t) {
   t.plan(2);
@@ -42,16 +38,14 @@ test('errors on wrong channel', function(t) {
   var server = MockServer(serverOptions);
 
   var port = helpers.randomPort();
-  var s = PeerStream(options, helpers.hub());
-  
-  s.connect(port)
-  
-  s.once('error', function(err) {
-    t.ok(err);
-    t.equal(err.message, 'wrong channel name: WRONG_CHANNEL. Expected CHANNEL_1');
-    s.end();
-    server.close();    
-  });
+  var recon = helpers.connect(port, options, function(s) {
+    s.once('error', function(err) {
+      t.ok(err);
+      t.equal(err.message, 'wrong channel name: WRONG_CHANNEL. Expected CHANNEL_1');
+      s.end();
+      server.close();    
+    });
+  });  
 
   server.listen(port);
 });
@@ -60,310 +54,258 @@ test('sends message', function(t) {
   t.plan(1);
   
   var server = MockServer(options);
-
   var port = helpers.randomPort();
-  var s = PeerStream(options, helpers.hub());
-  
-  s.write('this is a message');
-  s.end();
-  s.connect(port)
-  server.listen(port);
-
-  // Give some time for this message
-  // to reach the server
-  setTimeout(function() {
-    t.deepEqual(server.messages, ['this is a message']);
-    server.close();    
-  }, 500);
-
-});
-
-test('supports pipe', function(t) {
-  t.plan(1);
-  var server = MockServer(options);
-
-  var port = helpers.randomPort();
-  var s = PeerStream(options, helpers.hub());
-
-  s.connect(port);
-  es.pipeline(
-    fs.createReadStream(__dirname + '/events.txt'),
-    es.split()
-  ).pipe(s);
-
-  server.listen(port);
-
-  // Give some time for this message
-  // to reach the server
-  setTimeout(function() {
-    t.deepEqual(server.messages, [
-      'event one',
-      'event two',
-      'event three']);
-    server.close();    
-  }, 500);
-
-});
-
-test('reconnects', function(t) {
-  t.plan(1);
-
-  var server = MockServer(options);
-
-  var port = helpers.randomPort();
-  var s = PeerStream(options, helpers.hub());
-
-  server.listen(port);
-  s.connect(port);
-  
-  s.once('connect', function() {
-    server.forceClose();
-    server.once('close', function() {
-      s.write('one message');
+  var recon = helpers.connect(port, options, function(s) {
+    server.on('message', function(m) {
+      t.equal(m, 'this is a message');
       s.end();
-      server.listen(port);
-
-      // Give some time for this message
-      // to reach the server
-      setTimeout(function() {
-        t.deepEqual(server.messages, [ 'one message' ]);
-        server.close();
-      }, 500);
+      server.close();        
     });
+
+    s.write('this is a message');
   });
 
+  server.listen(port);
 });
 
-test('emits data on server message', function(t) {
+test('can pipe to', function(t) {
   t.plan(1);
-
   var server = MockServer(options);
 
   var port = helpers.randomPort();
-  var s = PeerStream(options, helpers.hub());
+  var recon = helpers.connect(port, options, function(s) {
 
-  var collected = [];
-  s.on('data', function(d) {
-    collected.push(d);
-    if (collected.length >= 2) {
-      t.deepEqual(collected, ['message 1', 'message 2']);
-      s.end();
-      server.close();      
-    }
+    var collected = [];
+    server.on('message', function(m) {
+      collected.push(m);
+      if (collected.length >= 3) {
+        t.deepEqual(collected, [
+          'event one',
+          'event two',
+          'event three']);
+
+        s.end();
+        server.close();        
+      }
+    });
+
+    var source = es.pipeline(
+      fs.createReadStream(__dirname + '/events.txt'),
+      es.split()
+    )
+    source.pipe(s);
+
   });
-  s.connect(port);
-
-  server.send = [
-    ['message 1', {id: 1, nodes: ['a']}],
-    ['message 2', {id: 2, nodes: ['a']}]
-  ];
 
   server.listen(port);
 
 });
 
-test('acknowledges message and removes from buffer', function(t) {
-  t.plan(3);
+test('can pipe from', function(t) {
+
+  t.plan(1);
+
+  var server = MockServer(options);
+
+  server.send = ['event uno', 'event due', 'event trei'];
+
+  var port = helpers.randomPort();
+  var recon = helpers.connect(port, options, function(s) {
+    var collected = [];
+    var dest = es.mapSync(function(d) {
+      collected.push(d);
+      if (collected.length >= 3) {
+        t.deepEqual(collected, ['event uno', 'event due', 'event trei']);
+        s.end();
+        server.close();        
+      }
+    });
+
+    s.pipe(dest);
+
+  });
+
+  server.listen(port);
+
+});
+
+
+test('when acknowledge comes, removes message from buffer', function(t) {
+
+  t.plan(2);
 
   var server = MockServer(options);
 
   var port = helpers.randomPort();
-  var s = PeerStream(options, helpers.hub());
+  var recon = helpers.connect(port, options, function(s) {
+    var collected = [];
+    server.on('ack', function(id) {
+      if (! id) return;
+      collected.push(id);
+      if (collected.length >= 2) {
+        t.ok(collected.indexOf('def') >= 0, 'server got acknowledge for last msg');
+        t.equal(s.bufferLength(), 0);
+        s.end();
+        server.close();        
+      }
+    });
 
-  setTimeout(function() {
-    t.ok(server.acknowledges.length > 0, 'server got acknowledges');
-    t.ok(server.acknowledges.indexOf('def') >= 0, 'server got acknowledge for last msg');
-    t.equal(s.bufferLength(), 0);
-    s.end();
-    server.close();
-  }, 500);
-
-  s.connect(port);
+  });
 
   server.send = [
     ['message 1', {id: 'abc', nodes: ['a']}],
     ['message 2', {id: 'def', nodes: ['a']}]
   ];
-
   server.listen(port);
 });
 
 test('emits acknowledges', function(t) {
-  t.plan(3);
+  
+  t.plan(1);
 
   var server = MockServer(options);
 
   var port = helpers.randomPort();
-  var s = PeerStream(options, helpers.hub());
-  s.write('abc');
-  s.write('def');
+  var recon = helpers.connect(port, options, function(s) {
+    var lastId;
+    var mCount = 0;
+    server.on('message', function(m, meta) {
+      lastId = meta.id;
+      mCount ++;
+      if (mCount >= 2) {
+        var acknowledges = 0;
+        s.on('acknowledge', function(id) {
+          if (id == lastId) {
+            t.ok(true, 'ended');
+            s.end();
+            server.close();
+          }
+        });        
+      }
+    });
 
-  var acknowledges = 0;
-  s.on('acknowledge', function(id) {
-    t.ok(!! id);
-    acknowledges ++;
-    if (acknowledges >= 2) {
-      t.ok(true, 'ended');
-      s.end();
-      server.close();
-    }
+    s.write('abc');
+    s.write('def');
   });
 
-  s.connect(port);
-
   server.listen(port);
+
 });
 
 test('buffering messages time out', function(t) {
   t.plan(2);
   
   var opts = helpers.clone(options);
-  
   opts.bufferTimeout = 10;
   
   var server = MockServer(opts);
   server.acknowledge = false;
   var port = helpers.randomPort();
-  var s = PeerStream(opts, helpers.hub());
+  var recon = helpers.connect(port, opts, function(s) {
+    // safeguard to ensure the server is not acknowledging
+    s.on('acknowledge', helpers.shouldNot('should not acknowledge'));
 
-  // safeguard to ensure the server is not acknowledging
-  s.on('acknowledge', helpers.shouldNot('should not acknowledge'));
+    s.write('abc');
+    s.write('def');
 
-  s.connect(port);
-  s.write('abc');
-  s.write('def');
+    t.equal(s.bufferLength(), 2);
 
-  t.equal(s.bufferLength(), 2);
+    setTimeout(function() {
+      t.equal(s.bufferLength(), 0);
+      s.end();
+      server.close();
+    }, 500);
 
-  setTimeout(function() {
-    t.equal(s.bufferLength(), 0);
-    s.end();
-    server.close();
-  }, 500);
+  });
+
 
   server.listen(port)
 });
 
 
 test('synchronizes missing messages', function(t) {
-  
-  t.plan(5);
+
+  t.plan(3);
   
   var server = MockServer(options);
-  var port = helpers.randomPort();
-  var s = PeerStream(options, helpers.hub());
-
   server.acknowledge = false;
-  server.listen(port);
-  s.connect(port);
-  s.write('ghi');
-  s.write('jkl');
-  s.write('mno');
+  var port = helpers.randomPort();
+  
+  var connCount = -1;
+  var connections = [];
+  var recon;
+  
+  connections.push(function(s) {
+    var collected = [];
+    var firstId;
+    function onMessage(m, meta) {
+      if (! firstId) firstId = meta.id;
+      collected.push(m);
+      if (collected.length >= 3) {
+        server.removeListener('message', onMessage);
+        t.deepEqual(collected, ['ghi', 'jkl', 'mno']);
+        t.ok(!! firstId);
+        recon.reconnect = true;
 
-  setTimeout(function() {
-    t.deepEqual(server.messages, ['ghi', 'jkl', 'mno']);
-    t.equal(server.metas.length, 3)
-    t.equal(s.bufferLength(), 3);
+        server.once('close', function() {
+          server.sync = firstId;
+          server.listen(port);
+        });
 
-    var firstId = server.metas[0].id;
-    t.ok(!! firstId);
-    
-    // reset messages
-    server.metas = [];
-    server.messages = [];
+        server.forceClose();
+      }
+    }
+    server.on('message', onMessage);
 
-    server.forceClose();
-
-    server.once('close', function() {
-      server.sync = firstId;
-      server.listen(port);
-
-      setTimeout(function() {
-        t.deepEqual(server.messages, ['jkl', 'mno']);
+    s.write('ghi');
+    s.write('jkl');
+    s.write('mno');
+  });
+  
+  connections.push(function(s) {
+    var collected = [];
+    server.on('message', function(m, meta) {
+      collected.push(m);
+      if (collected.length >= 2) {
+        t.deepEqual(collected, ['jkl', 'mno']);
+        recon.reconnect = false;
         s.end();
         server.close();
-      }, 500);
-
+      }
     });
+  });
+  
+  var messages;
+  recon = helpers.connect(port, options, function(s) {
+    if (! messages) messages = s.pendingMessages();
+    else s.takeMessages(messages);
 
-  }, 500);
-});
-
-test('reconnects on timeout', function(t) {
-  t.plan(2);
-
-  var server = MockServer(options);
-  var port = helpers.randomPort();
-  var s = PeerStream(options, helpers.hub());
+    connCount ++;
+    connections[connCount](s);
+  });
 
   server.listen(port);
 
-  server.send = [
-    ['message 1', {id: 'qwe', nodes: ['a']}],
-    ['message 2', {id: 'rty', nodes: ['a']}]
-  ];
+});
 
-  s.connect(port);
-  var collected = [];
-  s.on('data', function(d) {
-    collected.push(d);
-    server.send = [];
-    if (collected.length >= 2) {
-      s.once('timeout', function() {
-        t.ok(true, 'got timeout');
-        s.once('initialized', function() {
-          t.ok('ended', true);
-          s.end();
-          server.close();
-        });
+test('emits the end event once when ends', function(t) {
+  t.plan(1);
+
+  var server = MockServer(options);
+  var port = helpers.randomPort();
+  recon = helpers.connect(port, options, function(s) {
+    s.once('initialized', function() {
+      s.once('end', function() {
+        t.ok(true, 'ended');
+        s.on('end', helpers.shouldNot('emit end event more than once'));
+        server.close();
       });
-    }
+      s.end();
+    });
+
   });
-
-});
-
-test('emits the end event when ends', function(t) {
-
-  t.plan(1);
-
-  var server = MockServer(options);
-  var port = helpers.randomPort();
-  var s = PeerStream(options, helpers.hub());
 
   server.listen(port);
-
-  s.connect(port);
-
-  s.on('initialized', function() {
-    s.once('end', function() {
-      t.ok(true, 'ended');
-      server.close();
-    });
-    s.end();
-  });
-
-});
-
-test('emits the end event only once', function(t) {
-
-  t.plan(1);
-
-  var server = MockServer(options);
-  var port = helpers.randomPort();
-  var s = PeerStream(options, helpers.hub());
-
-  server.listen(port);
-
-  s.connect(port);
-
-  s.on('initialized', function() {
-    s.once('end', function() {
-      t.ok(true, 'ended');
-      s.on('end', helpers.shouldNot('emit end event more than once'));
-      server.close();
-    });
-    s.end();
-  });
 
 });
 

@@ -102,10 +102,9 @@ function create(options) {
   /// End
 
   m.end =
-  function() {
+  function end() {
     if (timeout) clearTimeout(timeout);
-    messageIds = [];
-    messages = {};
+    timeout = undefined;
   };
 
 
