@@ -57,3 +57,14 @@ test('respects max messages', function(t) {
   m.end();
   t.end();
 });
+
+test('unmatched acknowledge does not consume messages', function(t) {
+    var m = Messages({maxMessages: 2});
+  m.push('message 1', 'id1', 'meta1');
+  m.push('message 2', 'id2', 'meta2');
+  t.equal(m.length(), 2);
+  m.acknowledge('id4');
+  t.equal(m.length(), 2);
+  m.end();
+  t.end();
+});

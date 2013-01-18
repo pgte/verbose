@@ -1,4 +1,5 @@
 
+* Simulate timeouts and ensure no listeners leak after reconnected
 * domain.dispose()
 * pluggable transports (TLS)
 * latency measurements

@@ -1,6 +1,6 @@
 {
-  "name": "emitter-node",
-  "description": "Remote peer-to-peer event synchronization",
+  "name": "verbose",
+  "description": "Remote event synchronization",
   "version": "0.1.0",
   "author" : "Pedro Teixeira <pedro.teixeira@gmail.com>",
   "contributors" : [
@@ -8,10 +8,10 @@
   ],
  "repository" : {
     "type" : "git",
-   "url" : "http://github.com/pgte/emitter-node.git"
+    "url" : "http://github.com/pgte/emitter-node.git"
   },
   "bugs" : {
-    "url" : "http://github.com/pgte/emitter-node/issues"
+    "url" : "http://github.com/pgte/verbose/issues"
   },
   "engines" : ["node >= 0.8.1"],
   "main" : "./node.js",

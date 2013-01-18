@@ -55,7 +55,7 @@ function create(options) {
   m.acknowledge =
   function acknowledge(id) {
     var mId;
-    if (id) {
+    if (id && messages.hasOwnProperty(id)) {
       while(messageIds.length) {
         mId = messageIds.splice(0, 1)[0];
         delete messages[mId];

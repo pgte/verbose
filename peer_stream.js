@@ -191,7 +191,7 @@ function PeerStream(options, messageHub) {
     
     // Send Acknowledge Interval
     function acknowledge() {
-      if (s.lastMessageId) remoteEmitter.emit('ack', s.lastMessageId);
+      remoteEmitter.emit('ack', s.lastMessageId);
     }
     var ackInterval = setInterval(acknowledge, options.acknowledgeInterval);
 
@@ -237,7 +237,7 @@ function PeerStream(options, messageHub) {
   }
 
   function onRemoteAcknowledge(id) {
-    messages.acknowledge(id);
+    if (id) messages.acknowledge(id);
     s.emit('acknowledge', id);
   }
 
