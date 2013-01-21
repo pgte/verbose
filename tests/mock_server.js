@@ -17,9 +17,9 @@ function MockServer(options) {
     remoteEmitter.emit('peerid', options.channel, options.node_id);
     remoteEmitter.emit('sync', server.sync, false);
     
-    remoteEmitter.on('message', function(m, meta) {
-      server.emit('message', m, meta);
-      if (server.acknowledge) remoteEmitter.emit('ack', meta.id);
+    remoteEmitter.on('message', function(m) {
+      server.emit('message', m);
+      if (server.acknowledge) remoteEmitter.emit('ack', m._id);
     });
 
     remoteEmitter.on('ack', function(id) {

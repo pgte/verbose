@@ -34,14 +34,12 @@ test('initializes', function(t) {
   });
 
   remoteEmitter.on('peerid', function(channelId, peerId) {
-    console.log('peerid');
     t.equal(channelId, 'CHANNEL_1');
     t.equal(peerId, 'NODE_ID_1');
     remoteEmitter.emit('peerid', 'CHANNEL_1', 'REMOTE_PEER_ID');
   });
 
   remoteEmitter.on('sync', function() {
-    console.log('sync');
     t.ok(true, 'sync received on peer');
     remoteEmitter.emit('sync', 'ABC', 'DEF');
   });
@@ -78,14 +76,14 @@ test('emits messages', function(t) {
   var remotePeer = helpers.remotePeer('REMOTE_NODE_ID', options, remoteStream);
   var p = PeerProtocol(localStream, options);
   p.initialize();
-  p.message('ABC');
-  p.message('DEF');
+  p.message({a: 'ABC'});
+  p.message({a: 'DEF'});
 
   var collected = [];
   remotePeer.on('message', function(m) {
     collected.push(m);
     if (collected.length >= 2) {
-      t.deepEqual(collected, ['ABC', 'DEF']);
+      t.similar(collected, [{a: 'ABC'}, {a: 'DEF'}]);
       p.end();
     }
   });

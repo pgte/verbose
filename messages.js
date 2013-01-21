@@ -23,11 +23,12 @@ function create(options) {
   var currentIndex = 0;
 
   m.push =
-  function push(message, id, meta) {
-    if (! message || ! id || ! meta) {
-      throw new Error('invalid arguments, something is missing');
+  function push(message) {
+    if (! message || ! message._id) {
+      throw new Error('invalid arguments, message or message._id is missing');
     }
-    messages[id] = { message: message, id: id, meta: meta, expires: Date.now() + options.timeout };
+    var id = message._id;
+    messages[id] = { message: message, expires: Date.now() + options.timeout };
     messageIds.push(id);
     if (messageIds.length > options.maxMessages) {
       var mId = messageIds.splice(0, 1)[0];
@@ -40,10 +41,11 @@ function create(options) {
   m.next =
   function next() {
     var id = messageIds[currentIndex];
+    console.log('next is', id);
     if (id) {
       var m = messages[id];
       currentIndex ++;
-      return m;
+      return m.message;
     }
   };
 

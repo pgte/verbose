@@ -3,7 +3,7 @@ var EventEmitter = require('events').EventEmitter;
 var server = require('./server');
 var Options = require('./options');
 var PeerStream = require('./peer_stream');
-var PeerList = require('./peer_list');
+var PeerPool = require('./peer_pool');
 var MessageHub = require('./message_hub');
 var Transport = require('./transport');
 
@@ -22,7 +22,7 @@ function Node(options) {
   var ended = false;
 
   /// Peer List
-  var peerList = PeerList();
+  var peers = PeerPool();
 
   /// Exported stream
   function identity(data) {
@@ -118,19 +118,19 @@ function Node(options) {
 
   function removePeer(peer) {
     if (peer.node_id) {
-      peerList.remove(peer.node_id);
+      peers.remove(peer.node_id);
     }
   }
 
   function addPeer(peerId, peerStream) {
-    var existingPeer = peerList.get(peerId);
+    var existingPeer = peers.get(peerId);
     if (existingPeer) {
       peerStream.takeMessages(existingPeer.pendingMessages());
       peerStream.lastMessageId = existingPeer.lastMessageId;
       peerStream.connectedTimes += existingPeer.connectedTimes;
       existingPeer.emit('_replaced');
     }
-    peerList.add(peerId, peerStream);
+    peers.add(peerId, peerStream);
   }
 
   e.peers =

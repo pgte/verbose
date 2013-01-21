@@ -54,7 +54,7 @@ function PeerStream(remoteStream, opts) {
       var m;
       messages.acknowledge(id);
       while(m = messages.next()) {
-        protocol.message(m.message, m.meta);
+        protocol.message(m);
       }
     }
 
@@ -85,9 +85,9 @@ function PeerStream(remoteStream, opts) {
       s.emit('initialized');
     });
 
-    function onRemoteMessage(msg, meta) {
+    function onRemoteMessage(msg) {
       s.emit('data', msg);
-      s.lastMessageId = meta.id;
+      s.lastMessageId = msg._id;
     }
 
     function onRemoteAcknowledge(id) {
@@ -132,17 +132,13 @@ function PeerStream(remoteStream, opts) {
   /// Write
 
   s.write =
-  function write(d, meta) {
+  function write(msg) {
+    if (typeof msg != 'object') throw new Error('a message must be an object. ' + (typeof msg) + ' is not acceptable.');
+    if (! msg._id) msg._id = uuid.v4();
+    if (! msg._nodes) msg._nodes = [];
 
-    if (! meta) {
-      meta = {
-        id: uuid.v4(), // new message id
-        nodes: []
-      };
-    }
-
-    messages.push(d, meta.id, meta);
-    return protocol.message(d, meta);
+    messages.push(msg);
+    return protocol.message(msg);
   };
 
   /// End

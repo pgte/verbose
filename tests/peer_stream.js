@@ -57,12 +57,12 @@ test('sends message', function(t) {
   var port = helpers.randomPort();
   var recon = helpers.connect(port, options, function(s) {
     server.on('message', function(m) {
-      t.equal(m, 'this is a message');
+      t.similar(m, {a: 'this is a message'});
       s.end();
       server.close();        
     });
 
-    s.write('this is a message');
+    s.write({a: 'this is a message'});
   });
 
   server.listen(port);
@@ -79,10 +79,10 @@ test('can pipe to', function(t) {
     server.on('message', function(m) {
       collected.push(m);
       if (collected.length >= 3) {
-        t.deepEqual(collected, [
-          'event one',
-          'event two',
-          'event three']);
+        t.similar(collected, [
+          {a: 'event one'},
+          {a: 'event two'},
+          {a: 'event three'} ]);
 
         s.end();
         server.close();        
@@ -91,7 +91,8 @@ test('can pipe to', function(t) {
 
     var source = es.pipeline(
       fs.createReadStream(__dirname + '/events.txt'),
-      es.split()
+      es.split(),
+      es.parse()
     )
     source.pipe(s);
 
@@ -107,7 +108,10 @@ test('can pipe from', function(t) {
 
   var server = MockServer(options);
 
-  server.send = ['event uno', 'event due', 'event trei'];
+  server.send = [
+    {a: 'event uno', _id: 'id1', _nodes: []},
+    {a: 'event due', _id: 'id2', _nodes: []},
+    {a: 'event trei', _id: 'id2', _nodes: []}];
 
   var port = helpers.randomPort();
   var recon = helpers.connect(port, options, function(s) {
@@ -115,7 +119,7 @@ test('can pipe from', function(t) {
     var dest = es.mapSync(function(d) {
       collected.push(d);
       if (collected.length >= 3) {
-        t.deepEqual(collected, ['event uno', 'event due', 'event trei']);
+        t.similar(collected, [{a: 'event uno'}, {a: 'event due'}, {a: 'event trei'}]);
         s.end();
         server.close();        
       }
@@ -128,7 +132,6 @@ test('can pipe from', function(t) {
   server.listen(port);
 
 });
-
 
 test('when acknowledge comes, removes message from buffer', function(t) {
 
@@ -153,15 +156,15 @@ test('when acknowledge comes, removes message from buffer', function(t) {
   });
 
   server.send = [
-    ['message 1', {id: 'abc', nodes: ['a']}],
-    ['message 2', {id: 'def', nodes: ['a']}]
+    [{a: 'message 1', _id: 'abc', _nodes: ['a']}],
+    [{a: 'message 2', _id: 'def', _nodes: ['a']}]
   ];
   server.listen(port);
 });
 
 test('emits acknowledges', function(t) {
   
-  t.plan(1);
+  t.plan(2);
 
   var server = MockServer(options);
 
@@ -169,8 +172,9 @@ test('emits acknowledges', function(t) {
   var recon = helpers.connect(port, options, function(s) {
     var lastId;
     var mCount = 0;
-    server.on('message', function(m, meta) {
-      lastId = meta.id;
+    server.on('message', function(m) {
+      lastId = m._id;
+      t.ok(!! m._id, 'message has id');
       mCount ++;
       if (mCount >= 2) {
         var acknowledges = 0;
@@ -184,8 +188,8 @@ test('emits acknowledges', function(t) {
       }
     });
 
-    s.write('abc');
-    s.write('def');
+    s.write({a: 'abc'});
+    s.write({a: 'def'});
   });
 
   server.listen(port);
@@ -205,8 +209,8 @@ test('buffering messages time out', function(t) {
     // safeguard to ensure the server is not acknowledging
     s.on('acknowledge', helpers.shouldNot('should not acknowledge'));
 
-    s.write('abc');
-    s.write('def');
+    s.write({a: 'abc'});
+    s.write({a: 'def'});
 
     t.equal(s.bufferLength(), 2);
 
@@ -221,7 +225,6 @@ test('buffering messages time out', function(t) {
 
   server.listen(port)
 });
-
 
 test('synchronizes missing messages', function(t) {
 
@@ -238,12 +241,12 @@ test('synchronizes missing messages', function(t) {
   connections.push(function(s) {
     var collected = [];
     var firstId;
-    function onMessage(m, meta) {
-      if (! firstId) firstId = meta.id;
+    function onMessage(m) {
+      if (! firstId) firstId = m._id;
       collected.push(m);
       if (collected.length >= 3) {
         server.removeListener('message', onMessage);
-        t.deepEqual(collected, ['ghi', 'jkl', 'mno']);
+        t.similar(collected, [{a: 'ghi'}, {a: 'jkl'}, {a: 'mno'}]);
         t.ok(!! firstId);
         recon.reconnect = true;
 
@@ -257,9 +260,9 @@ test('synchronizes missing messages', function(t) {
     }
     server.on('message', onMessage);
 
-    s.write('ghi');
-    s.write('jkl');
-    s.write('mno');
+    s.write({a: 'ghi'});
+    s.write({a: 'jkl'});
+    s.write({a: 'mno'});
   });
   
   connections.push(function(s) {
@@ -267,7 +270,7 @@ test('synchronizes missing messages', function(t) {
     server.on('message', function(m, meta) {
       collected.push(m);
       if (collected.length >= 2) {
-        t.deepEqual(collected, ['jkl', 'mno']);
+        t.similar(collected, [{a:'jkl'}, {a:'mno'}]);
         recon.reconnect = false;
         s.end();
         server.close();
