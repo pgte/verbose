@@ -74,6 +74,7 @@ function PeerProtocol(remoteStream, options, lastMessageId, isReconnect) {
       peerId = remotePeerId;
       if (channel != options.channel) {
         clearTimeout(timeout);
+        timeout = undefined;
         return e.emit('error',
           new Error(
             'wrong channel name: ' + channel + '. Expected ' + options.channel));
@@ -81,6 +82,7 @@ function PeerProtocol(remoteStream, options, lastMessageId, isReconnect) {
 
       remoteEmitter.once('sync', function(lastMessageId, isReconnect) {
         clearTimeout(timeout);
+        timeout = undefined;
         e.emit('initialized', lastMessageId, isReconnect);
 
         initialized = true;

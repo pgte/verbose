@@ -17,6 +17,7 @@ test('add wires up spine stream', function(t) {
 
   s.on('write', function(d) {
     t.deepEqual(d, ['DEF']);
+    peers.end();
   });
 
   s.emit('data', 'ABC');
@@ -34,6 +35,7 @@ test('add connects to other peer', function(t) {
 
   peer2.on('write', function(d) {
     t.deepEqual(d, ['ABCDEF']);
+    peers.end();
   });
 
   peer1.emit('data', 'ABCDEF');
@@ -53,11 +55,13 @@ test('when a peer ends it does not emit more data', function(t) {
   s.emit('data', 'ABCDEF');
 
   t.end();
+
+  peers.end();
 });
 
 test('add existing makes new peer inherit messages from the old one', function(t) {
   t.plan(1);
-  
+
   var s = helpers.mockStream();
   var peers = PeerPool(s);
   var peer1 = helpers.mockStream();
@@ -69,6 +73,54 @@ test('add existing makes new peer inherit messages from the old one', function(t
   var peer2 = helpers.mockStream();
   peer2.takeMessages = function(messages) {
     t.deepEqual(messages, ['ABC', 'DEF']);
+    peers.end();
   };
   peers.add('peer1', peer2);
+});
+
+
+test('peer is removed after end timeout', function(t) {
+  t.plan(2);
+
+  var opts = helpers.options({bufferTimeout: 10});
+  var s = helpers.mockStream();
+  var peers = PeerPool(s, opts);
+  var peer = helpers.mockStream();
+  peers.add('id1', peer);
+
+  t.deepEqual(peers.list().length, 1);
+  peer.emit('end');
+
+  setTimeout(function() {
+    t.deepEqual(peers.list().length, 0);
+    peers.end();
+  }, 20);
+
+});
+
+test('peer is not removed after end timeout if it gets replaced', function(t) {
+  t.plan(2);
+
+  var opts = helpers.options({bufferTimeout: 10});
+  var s = helpers.mockStream();
+  var peers = PeerPool(s, opts);
+  var peer1 = helpers.mockStream();
+  peer1.pendingMessages = function() {};
+
+  peers.add('id1', peer1);
+
+  t.deepEqual(peers.list().length, 1);
+  peer1.emit('end');
+
+  setTimeout(function() {
+    var peer2 = helpers.mockStream();
+    peer2.takeMessages = function() {};
+    peers.add('id1', peer2);
+  }, 5);
+
+  setTimeout(function() {
+    t.deepEqual(peers.list().length, 1);
+    peers.end();
+  }, 20);
+
 });

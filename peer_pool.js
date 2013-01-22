@@ -1,10 +1,15 @@
 var EventEmitter = require('events').EventEmitter;
+var Options = require('./options');
 
 exports =
 module.exports = 
-function PeerList(spine) {
+function PeerList(spine, opts) {
 
+
+  var options = Options(opts);
   var ee = new EventEmitter();
+  var ending = false;
+  var ended = false;
 
   var peers = {};
 
@@ -22,10 +27,34 @@ function PeerList(spine) {
         peer.pipe(otherPeer).pipe(peer);        
       }
     });
+
+    peer.once('end', function() {
+      console.log('peer ended');
+      function onReplaced() {
+        peer.removeListener('replaced', onReplaced);
+        if (timeout) clearTimeout(timeout);
+        timeout = undefined;
+      }
+      peer.on('replaced', onReplaced);
+
+      if (! ending) {
+        var timeout = setTimeout(function() {
+          peer.removeListener('replaced', onReplaced);
+          delete peers[id];
+        }, options.bufferTimeout);
+
+        ee.once('ending', function() {
+          if (timeout) clearTimeout(timeout);
+          timeout = undefined;
+        });  
+      }
+
+    });
   }
 
   ee.add =
   function add(id, peer) {
+    if (ended) throw new Error('Ended');
     var existing = peers[id];
     peers[id] = peer;
 
@@ -44,6 +73,23 @@ function PeerList(spine) {
     }
 
   };
+
+  ee.list =
+  function list() {
+    return Object.keys(peers).map(function(id) {
+      return peers[id];
+    });
+  };
+
+  ee.end =
+  function end() {
+    ending = true;
+    ee.emit('ending');
+    Object.keys(peers).forEach(function(id) {
+      var peer = peers[id];
+      if (! peer.ended) peer.end();
+    });
+  }
 
   return ee;
 };

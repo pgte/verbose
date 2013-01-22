@@ -114,28 +114,13 @@ function Node(options) {
   }
 
 
-  /// Add and Remove Peer
+  /// Peer Pool
 
-  function removePeer(peer) {
-    if (peer.node_id) {
-      peers.remove(peer.node_id);
-    }
-  }
-
-  function addPeer(peerId, peerStream) {
-    var existingPeer = peers.get(peerId);
-    if (existingPeer) {
-      peerStream.takeMessages(existingPeer.pendingMessages());
-      peerStream.lastMessageId = existingPeer.lastMessageId;
-      peerStream.connectedTimes += existingPeer.connectedTimes;
-      existingPeer.emit('_replaced');
-    }
-    peers.add(peerId, peerStream);
-  }
+  var peerPool = PeerPool(spine, options);
 
   e.peers =
   function peers() {
-    return peerList.all();
+    return peerPool.list();
   };
 
 
@@ -143,16 +128,29 @@ function Node(options) {
   /// Handle Connection
 
   function handleConnection(stream) {
-    var peerStream = PeerStream(options, messageHub);
+    var peer = PeerStream(stream, options);
+
+    /// Propagate some events from peer into the stream
+    var p = propagate(
+      [
+        'initialized',
+        'acknowledge'],
+      peer,
+      s);
     peerStream.once('peerid', function(peerId) {
-      peerStream.node_id = peerId;
-      addPeer(peerId, peerStream);
+      peerPool.add(peerId, peer);
     });
-    wireup(peerStream);
-    peerStream.handleStream(stream);
-    
-    stream.on('end', function() {
-      peerStream.emit('end');
+
+    /// End the stream on "end" command
+    function ender = function ender() {
+      if (! peerStream.ended) peerStream.end();
+    }
+
+    commands.on('end', ender);
+
+    /// Remove end command listener if the stream ends before the command
+    peerStream.once('end', function() {
+      commands.removeListener('end', ender);
     });
   }
 
@@ -166,8 +164,19 @@ function Node(options) {
       callback = host;
       host = undefined;
     }
+    
     var recon = options.transport.connect(port, host, callback);
+    
     recon.on('connect', handleConnection);
+    
+    // propagate([
+    //   'connect',
+    //   'disconnect',
+    //   'backoff',
+    //   'reconnect'],
+    //   recon,
+    //   e);
+
   }; 
 
 

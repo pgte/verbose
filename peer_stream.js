@@ -11,13 +11,18 @@ var Protocol = require('./peer_protocol');
 exports =
 module.exports =
 function PeerStream(remoteStream, opts) {
-  var options = Options(opts);
   
+  /// Parse options
+  
+  var options = Options(opts);
   var nodeId = options.node_id;
 
-  var s = new Stream();
-  s.writable = true;
-  s.readable = true;
+  /// s is the returned stream:
+  
+    var s = new Stream();
+    s.writable = true;
+    s.readable = true;
+    s.ended = false;
 
   /// Domain and error handling
 
@@ -77,6 +82,7 @@ function PeerStream(remoteStream, opts) {
     protocol.on('error', onError);
 
     protocol.once('peerid', function(peerId) {
+      s.peerId = peerId;
       s.emit('peerid', peerId);
     });
     
@@ -125,6 +131,7 @@ function PeerStream(remoteStream, opts) {
       if (ackTimeout) clearTimeout(ackTimeout);
       ackTimeout = undefined;
       messages.end();
+      s.ended = true;
       s.emit('end');
     });
 
