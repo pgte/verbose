@@ -3,6 +3,7 @@ var DuplexEmitter = require('duplex-emitter');
 var Stream = require('stream');
 var EventEmitter = require('events').EventEmitter;
 var reconnect = require('reconnect');
+var slice = Array.prototype.slice;
 
 
 exports.shouldNot =
@@ -107,4 +108,17 @@ function(peerid, options, stream) {
   });
 
   return emitter;
+}
+
+exports.mockStream = function() {
+    var s = new Stream();
+  s.writable = s.readable = true;
+  s.write = function(d) {
+    s.emit('write', slice.call(arguments));
+    return true;
+  };
+  s.end = function() {
+    s.emit('end');
+  };
+  return s;
 }
