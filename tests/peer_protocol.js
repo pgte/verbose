@@ -83,7 +83,7 @@ test('emits messages', function(t) {
   remotePeer.on('message', function(m) {
     collected.push(m);
     if (collected.length >= 2) {
-      t.similar(collected, [{a: 'ABC'}, {a: 'DEF'}]);
+      t.similar(collected, [{pl: {a: 'ABC'}}, {pl: {a: 'DEF'}}]);
       p.end();
     }
   });

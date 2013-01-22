@@ -36,6 +36,8 @@ function Options(opts) {
   if (! options.transport) options.transport = 'tcp';
 
   if (typeof options.transport == 'string') options.transport = Transport[options.transport];
+  if (! options.transport) throw new Error('Need a valid transport defined in options. Valid ones are: ' +
+    JSON.stringify(Object.keys(Transport)));
 
   return options;
 }

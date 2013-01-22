@@ -48,9 +48,8 @@ function hub() {
 };
 
 exports.connect =
-function(port, options, callback) {
-  var recon = reconnect();
-  recon.on('connect', function(stream) {
+function connect(port, options, callback) {
+  var recon = reconnect(function(stream) {
     recon.reconnect = false;
     var ps = PeerStream(stream, options);
     callback(ps);

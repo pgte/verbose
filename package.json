@@ -20,9 +20,7 @@
     "duplex-emitter": "*",
     "node-uuid": "*",
     "propagate": "*",
-    "colors": "*",
-    "duplexer": "*",
-    "through": "*"
+    "invert-stream": "*"
   },
   "devDependencies": {
     "tap": "0.3.x",

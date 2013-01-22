@@ -57,7 +57,7 @@ test('sends message', function(t) {
   var port = helpers.randomPort();
   var recon = helpers.connect(port, options, function(s) {
     server.on('message', function(m) {
-      t.similar(m, {a: 'this is a message'});
+      t.similar(m, {pl: {a: 'this is a message'}});
       s.end();
       server.close();        
     });
@@ -67,6 +67,7 @@ test('sends message', function(t) {
 
   server.listen(port);
 });
+
 
 test('can pipe to', function(t) {
   t.plan(1);
@@ -80,9 +81,9 @@ test('can pipe to', function(t) {
       collected.push(m);
       if (collected.length >= 3) {
         t.similar(collected, [
-          {a: 'event one'},
-          {a: 'event two'},
-          {a: 'event three'} ]);
+          {pl: {a: 'event one'}},
+          {pl: {a: 'event two'}},
+          {pl: {a: 'event three'}} ]);
 
         s.end();
         server.close();        
@@ -102,6 +103,7 @@ test('can pipe to', function(t) {
 
 });
 
+
 test('can pipe from', function(t) {
 
   t.plan(1);
@@ -109,9 +111,9 @@ test('can pipe from', function(t) {
   var server = MockServer(options);
 
   server.send = [
-    {a: 'event uno', _id: 'id1', _nodes: []},
-    {a: 'event due', _id: 'id2', _nodes: []},
-    {a: 'event trei', _id: 'id2', _nodes: []}];
+    {pl: {a: 'event uno'}, meta: { _id: 'id1', _nodes: []}},
+    {pl: {a: 'event due'}, meta: { _id: 'id2', _nodes: []}},
+    {pl: {a: 'event trei'}, meta: { _id: 'id2', _nodes: []}}];
 
   var port = helpers.randomPort();
   var recon = helpers.connect(port, options, function(s) {
@@ -156,8 +158,8 @@ test('when acknowledge comes, removes message from buffer', function(t) {
   });
 
   server.send = [
-    [{a: 'message 1', _id: 'abc', _nodes: ['a']}],
-    [{a: 'message 2', _id: 'def', _nodes: ['a']}]
+    [{pl: {a: 'message 1'}, meta: {_id: 'abc', _nodes: ['a']}}],
+    [{pl: {a: 'message 2'}, meta: {_id: 'def', _nodes: ['a']}}]
   ];
   server.listen(port);
 });
@@ -173,8 +175,8 @@ test('emits acknowledges', function(t) {
     var lastId;
     var mCount = 0;
     server.on('message', function(m) {
-      lastId = m._id;
-      t.ok(!! m._id, 'message has id');
+      lastId = m.meta._id;
+      t.ok(!! lastId, 'message has id');
       mCount ++;
       if (mCount >= 2) {
         var acknowledges = 0;
@@ -242,8 +244,8 @@ test('synchronizes missing messages', function(t) {
     var collected = [];
     var firstId;
     function onMessage(m) {
-      if (! firstId) firstId = m._id;
-      collected.push(m);
+      if (! firstId) firstId = m.meta._id;
+      collected.push(m.pl);
       if (collected.length >= 3) {
         server.removeListener('message', onMessage);
         t.similar(collected, [{a: 'ghi'}, {a: 'jkl'}, {a: 'mno'}]);
@@ -266,9 +268,10 @@ test('synchronizes missing messages', function(t) {
   });
   
   connections.push(function(s) {
+
     var collected = [];
     server.on('message', function(m, meta) {
-      collected.push(m);
+      collected.push(m.pl);
       if (collected.length >= 2) {
         t.similar(collected, [{a:'jkl'}, {a:'mno'}]);
         recon.reconnect = false;

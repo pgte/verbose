@@ -107,7 +107,20 @@ function PeerProtocol(remoteStream, options, lastMessageId, isReconnect) {
 
   function onRemoteMessage(msg) {
     if (! initialized) throw new Error('Not initialized');
-    if (! msg._nodes || ! msg._id) throw new Error('missing meta info in message');
+    
+    // unpack message
+    var meta = msg.meta;
+    if (! meta) throw new Error('no msg.meta');
+    msg = msg.pl;
+    if (! msg) throw new Error('no msg.pl');
+    msg._id = meta._id;
+    msg._nodes = meta._nodes;
+
+    // validate message meta
+    if (! msg._nodes) throw new Error('missing meta _nodes in remote message');
+    if (! msg._id) throw new Error('missing meta _id in remote message');
+
+    // only use message if it has not passed this node yet
     if (msg._nodes.indexOf(nodeId) == -1) {
       msg._nodes.push(nodeId);
       e.emit('message', msg);
@@ -124,10 +137,21 @@ function PeerProtocol(remoteStream, options, lastMessageId, isReconnect) {
   e.message =
   function enqueueMessage(msg) {
     if (typeof msg != 'object') throw new Error('a message must be an object. ' + (typeof msg) + ' is not acceptable.');
-    if (ended) throw new Error('Ended');
     if (! msg._id) msg._id = uuid.v4();
     if (! msg._nodes) msg._nodes = [];
     if (msg._nodes.indexOf(peerId) > -1) return;
+    if (ended) return;
+
+    msg = {
+      pl: msg,
+      meta: {
+        _nodes: msg._nodes,
+        _id: msg._id
+      }
+    };
+
+    delete msg.pl._id;
+    delete msg.pl._nodes;
 
     enqueue(message, msg);
     process.nextTick(flush);

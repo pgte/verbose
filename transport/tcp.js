@@ -1,14 +1,18 @@
 var net = require('net');
 var reconnect = require('reconnect');
 
-function connect(port, host, callback) {
-  if (typeof host == 'function') {
-    callback = host;
-    host = undefined;
+function connect(options, connHandler, callback) {
+  if (typeof options != 'object') {
+    options = {
+      port: options
+    };
   }
-  remote = reconnect();
-  remote.connect(port, host);
-  return remote;
+
+  if (! options.port) throw new Error('Need a port to connect to');
+
+  recon = reconnect(connHandler);
+  recon.connect(options);
+  return recon;
 }
 
 function listen(port, host, callback) {

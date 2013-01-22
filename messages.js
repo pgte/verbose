@@ -103,10 +103,15 @@ function create(options) {
 
   /// End
 
-  m.end =
-  function end() {
+  m.dropTimeout =
+  function dropTimeout() {
     if (timeout) clearTimeout(timeout);
     timeout = undefined;
+  }
+
+  m.end =
+  function end() {
+    m.dropTimeout();
   };
 
 

@@ -3,7 +3,7 @@ var Options = require('./options');
 
 exports =
 module.exports = 
-function PeerList(spine, opts) {
+function PeerPool(spine, opts) {
 
 
   var options = Options(opts);
@@ -29,7 +29,6 @@ function PeerList(spine, opts) {
     });
 
     peer.once('end', function() {
-      console.log('peer ended');
       function onReplaced() {
         peer.removeListener('replaced', onReplaced);
         if (timeout) clearTimeout(timeout);

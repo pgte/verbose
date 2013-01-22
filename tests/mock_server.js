@@ -19,7 +19,7 @@ function MockServer(options) {
     
     remoteEmitter.on('message', function(m) {
       server.emit('message', m);
-      if (server.acknowledge) remoteEmitter.emit('ack', m._id);
+      if (server.acknowledge) remoteEmitter.emit('ack', m.meta._id);
     });
 
     remoteEmitter.on('ack', function(id) {

@@ -130,8 +130,8 @@ function PeerStream(remoteStream, opts) {
       clearInterval(ackInterval);
       if (ackTimeout) clearTimeout(ackTimeout);
       ackTimeout = undefined;
-      messages.end();
       s.ended = true;
+      messages.dropTimeout();
       s.emit('end');
     });
 
