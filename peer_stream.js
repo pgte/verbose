@@ -106,7 +106,7 @@ function PeerStream(remoteStream, opts) {
     protocol.on('acknowledge', onRemoteAcknowledge);
 
     // Propagate some events from the protocol into the stream
-    propagate(['drain'], protocol, s);
+    var p = propagate(['drain'], protocol, s);
 
     function acknowledge() {
       if (s.lastMessageId) protocol.acknowledge(s.lastMessageId);
@@ -124,14 +124,31 @@ function PeerStream(remoteStream, opts) {
     }
 
     protocol.once('end', function() {
+      
+      // Remove event listeners
       protocol.removeListener('error', onError);
       protocol.removeListener('message', onRemoteMessage);
       protocol.removeListener('acknowledge', onRemoteAcknowledge);
+      
+      // Clear intervals and timeouts
       clearInterval(ackInterval);
       if (ackTimeout) clearTimeout(ackTimeout);
       ackTimeout = undefined;
+      
+      /// Cancel the messages timeout timer
+      //    Doing this in the next tick because there may be some leftover
+      //    events to process.
+      process.nextTick(function() {
+        messages.dropTimeout();
+      });
+
+      // end event propagation from protocol
+      p.end();
+
+      // mark the stream as ended
       s.ended = true;
-      messages.dropTimeout();
+      
+      // Stream emits the end event
       s.emit('end');
     });
 
@@ -151,7 +168,7 @@ function PeerStream(remoteStream, opts) {
   /// End
 
   s.end =
-  function enqueueEnd(msg) {
+  function end(msg) {
     protocol.end();
   };
 

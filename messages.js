@@ -4,7 +4,10 @@ var defaultOptions = {
 };
 
 module.exports =
-function create(options) {
+function Messages(options) {
+
+  /// State
+  var ended = false;
 
   var m = {};
 
@@ -24,6 +27,7 @@ function create(options) {
 
   m.push =
   function push(message) {
+    if (ended) throw new Error('Ended');
     if (! message || ! message._id) {
       throw new Error('invalid arguments, message or message._id is missing');
     }
@@ -41,7 +45,6 @@ function create(options) {
   m.next =
   function next() {
     var id = messageIds[currentIndex];
-    console.log('next is', id);
     if (id) {
       var m = messages[id];
       currentIndex ++;
@@ -73,6 +76,7 @@ function create(options) {
 
   var timeout;
   function scheduleExpiration() {
+    if (ended) throw new Error('Ended');
     if (timeout) clearTimeout(timeout);
     timeout = undefined;
     if (messageIds.length) {
@@ -111,6 +115,7 @@ function create(options) {
 
   m.end =
   function end() {
+    ended = true;
     m.dropTimeout();
   };
 

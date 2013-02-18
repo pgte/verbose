@@ -2,13 +2,14 @@ var test = require('tap').test;
 var PeerPool = require('../peer_pool');
 var helpers = require('./helpers');
 
+
 test('add wires up spine stream', function(t) {
   t.plan(2);
 
   var s = helpers.mockStream();
   var peers = PeerPool(s);
   var peer = helpers.mockStream();
-  peers.add('id1', peer);
+  peers.add(peer);
 
   peer.on('write', function(d) {
     t.deepEqual(d, ['ABC']);
@@ -23,15 +24,16 @@ test('add wires up spine stream', function(t) {
   s.emit('data', 'ABC');
 });
 
+
 test('add connects to other peer', function(t) {
   t.plan(1);
 
   var s = helpers.mockStream();
   var peers = PeerPool(s);
   var peer1 = helpers.mockStream();
-  peers.add('peer1', peer1);
+  peers.add(peer1);
   var peer2 = helpers.mockStream();
-  peers.add('peer2', peer2);
+  peers.add(peer2);
 
   peer2.on('write', function(d) {
     t.deepEqual(d, ['ABCDEF']);
@@ -46,7 +48,7 @@ test('when a peer ends it does not emit more data', function(t) {
   var s = helpers.mockStream();
   var peers = PeerPool(s);
   var peer = helpers.mockStream();
-  peers.add('peer1', peer);
+  peers.add(peer);
 
   peer.on('write', helpers.shouldNot('write on ended peer'));
 
@@ -59,26 +61,6 @@ test('when a peer ends it does not emit more data', function(t) {
   peers.end();
 });
 
-test('add existing makes new peer inherit messages from the old one', function(t) {
-  t.plan(1);
-
-  var s = helpers.mockStream();
-  var peers = PeerPool(s);
-  var peer1 = helpers.mockStream();
-  peer1.pendingMessages = function() {
-    return ['ABC', 'DEF'];
-  };
-
-  peers.add('peer1', peer1);
-  var peer2 = helpers.mockStream();
-  peer2.takeMessages = function(messages) {
-    t.deepEqual(messages, ['ABC', 'DEF']);
-    peers.end();
-  };
-  peers.add('peer1', peer2);
-});
-
-
 test('peer is removed after end timeout', function(t) {
   t.plan(2);
 
@@ -86,7 +68,7 @@ test('peer is removed after end timeout', function(t) {
   var s = helpers.mockStream();
   var peers = PeerPool(s, opts);
   var peer = helpers.mockStream();
-  peers.add('id1', peer);
+  peers.add(peer);
 
   t.deepEqual(peers.list().length, 1);
   peer.emit('end');
@@ -107,7 +89,7 @@ test('peer is not removed after end timeout if it gets replaced', function(t) {
   var peer1 = helpers.mockStream();
   peer1.pendingMessages = function() {};
 
-  peers.add('id1', peer1);
+  peers.add(peer1);
 
   t.deepEqual(peers.list().length, 1);
   peer1.emit('end');
@@ -115,7 +97,7 @@ test('peer is not removed after end timeout if it gets replaced', function(t) {
   setTimeout(function() {
     var peer2 = helpers.mockStream();
     peer2.takeMessages = function() {};
-    peers.add('id1', peer2);
+    peers.add(peer2);
   }, 5);
 
   setTimeout(function() {

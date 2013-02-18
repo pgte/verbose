@@ -3,7 +3,6 @@ var Node = require('..');
 var helpers = require('./helpers');
 
 var options = {
-  channel: 'CHANNEL_1',
   timeout: 5e3
 };
 
@@ -18,18 +17,15 @@ test('emits from client to server', function(t) {
   s.listen(port);
   c.connect(port);
 
-  var ec = c.emitter();
-  var es = s.emitter();
-
-  es.on('abc', function(a, b, c) {
-    t.equal(a, 'a');
-    t.equal(b, 'b');
-    t.type(c, 'undefined');
-    ec.end();
-    es.end();
+  s.on('abc', function(_a, _b, _c) {
+    t.equal(_a, 'a');
+    t.equal(_b, 'b');
+    t.type(_c, 'undefined');
+    c.end();
+    s.end();
   });
 
-  ec.emit('abc', 'a', 'b');
+  c.emit('abc', 'a', 'b');
 
 });
 
@@ -44,19 +40,16 @@ test('emits from server to client', function(t) {
   s.listen(port);
   c.connect(port);
 
-  var ec = c.emitter();
-  var es = s.emitter();
-
-  ec.on('abc', function(a, b, c) {
-    t.equal(a, 'hey1');
-    t.equal(b, 'hey2');
-    t.type(c, 'undefined');
-    ec.end();
-    es.end();
+  c.on('abc', function(_a, _b, _c) {
+    t.equal(_a, 'hey1');
+    t.equal(_b, 'hey2');
+    t.type(_c, 'undefined');
+    c.end();
+    s.end();
   });
 
-  s.once('initialized', function() {
-    es.emit('abc', 'hey1', 'hey2');
+  c.stream.once('initialized', function() {
+    s.emit('abc', 'hey1', 'hey2');
   });
 
 });

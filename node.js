@@ -9,6 +9,7 @@ var PeerStream = require('./peer_stream');
 var PeerPool = require('./peer_pool');
 var MessageHub = require('./message_hub');
 var Transport = require('./transport');
+var BufferedPeer = require('./buffered_peer');
 
 exports =
 module.exports =
@@ -31,7 +32,7 @@ function Node(options) {
   /// Peer Pool
   var peers = PeerPool(spine, options);
 
-  /// Emitter
+  /// Returned Emitter
   var e = StreamEmitter(s);
   e.stream = s;
 
@@ -48,51 +49,18 @@ function Node(options) {
   };
 
 
-  /// Handle Connection
-
-  function handleConnection(stream) {
-    var peer = PeerStream(stream, options);
-
-    /// Propagate some events from peer into the stream
-    var p = propagate(
-      [
-        'initialized',
-        'acknowledge'],
-      peer,
-      s);
-    
-    /// Once we get a peer identification,
-    ///   we add this stream to the peer pool
-    peer.once('peerid', function(peerId) {
-      peers.add(peerId, peer);
-    });
-
-    /// End the stream on "end" command
-    function ender() {
-      if (! peer.ended) peer.end();
-    }
-
-    commands.on('end', ender);
-
-    /// Remove end command listener if the stream ends before the command
-    peer.once('end', function() {
-      commands.removeListener('end', ender);
-    });
-  }
-
-
   /// Connect
 
   e.connect =
   function connect(opts, callback) {
     if (ending || ended) throw new Error('Ended');
-    if (typeof host == 'function') {
-      callback = host;
-      host = undefined;
-    }
 
-    var recon = options.transport.connect(opts, handleConnection, callback);
-    
+    var bufferedPeer = BufferedPeer(options);
+
+    bufferedPeer.connect(opts);
+
+    peers.add(bufferedPeer);
+
     propagate([
       'connect',
       'disconnect',
@@ -102,12 +70,14 @@ function Node(options) {
       s);
 
     commands.once('end', function() {
-      console.log('disconnecting permanently');
-      recon.reconnect = false;
-      recon.disconnect();
-    })
+      bufferedPeer.disconnect();
+    });
 
-    return e;
+    commands.once('disconnect', function() {
+      bufferedPeer.disconnect();
+    });
+
+    return bufferedPeer;
   }; 
 
 

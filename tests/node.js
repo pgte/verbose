@@ -9,6 +9,43 @@ var options = {
 };
 
 
+test('server peer resends missed events', function(t) {
+  t.plan(4);
+  var port = helpers.randomPort();
+  var c1 = Node(helpers.clone(options));
+  var s = Node(helpers.clone(options));
+  s.listen(port);
+
+  var reconnected = false;
+  var collected = [];
+  c1.stream.on('data', function(d) {
+    t.ok(reconnected, 'already reconnected');
+    collected.push(JSON.stringify(d));
+    if (collected.length >= 3) {
+      console.log('collected:', collected);
+      t.deepEqual(collected, ['["abc"]', '["def"]', '["ghi"]']);
+      c1.end();
+      s.end();
+    }
+  });
+
+  c1.connect(port);
+
+  c1.stream.once('initialized', function() {
+    c1.disconnect();
+    s.emit('abc');
+    s.emit('def');
+    s.emit('ghi');
+    c1.stream.once('disconnect', function() {
+      reconnected = true;
+      c1.connect(port);
+    });
+  });
+
+});
+
+return;
+
 test('server emits', function(t) {
   t.plan(1);
   var s = Node(helpers.clone(options));
@@ -64,7 +101,6 @@ test('client emits', function(t) {
 
 test('several clients connected to server', function(t) {
 
-  console.log('------');
   t.plan(4);
   var s = Node(helpers.clone(options));
   var c1 = Node(helpers.clone(options));
@@ -73,7 +109,6 @@ test('several clients connected to server', function(t) {
 
   initCount = 0;
   function initialized() {
-    console.log('initialized');
     initCount ++;
     if (initCount >= 2) {
       c1.emit('abc');
@@ -88,10 +123,8 @@ test('several clients connected to server', function(t) {
 
   var collected = [];
   s.stream.on('data', function(d) {
-    console.log('s.stream.data', d);
     collected.push(JSON.stringify(d));
     if (collected.length >= 4) {
-      console.log('collected:', collected);
       t.ok(collected.indexOf('["abc"]') >= 0, 'got message 1');
       t.ok(collected.indexOf('["def"]') >= 0, 'got message 2');
       t.ok(collected.indexOf('["ghi"]') >= 0, 'got message 3');
@@ -107,43 +140,8 @@ test('several clients connected to server', function(t) {
   s.listen(port);
 });
 
+/// ---
 return;
-
-test('server peer resends missed events', function(t) {
-  t.plan(4);
-  var port = helpers.randomPort();
-  var c1 = Node(helpers.clone(options));
-  var s = Node(helpers.clone(options));
-  s.listen(port);
-
-  var reconnected = false;
-  var collected = [];
-  c1.stream.on('data', function(d) {
-    t.ok(reconnected, 'already reconnected');
-    collected.push(JSON.stringify(d));
-    if (collected.length >= 3) {
-      console.log('collected:', collected);
-      t.deepEqual(collected, ['["abc"]', '["def"]', '["ghi"]']);
-      c1.end();
-      s.end();
-    }
-  });
-
-  c1.connect(port);
-
-  c1.stream.once('initialized', function() {
-    s.emit('abc');
-    s.emit('def');
-    s.emit('ghi');
-    c1.disconnect();
-    c1.stream.once('disconnect', function() {
-      reconnected = true;
-      c1.connect(port);
-    });
-  });
-
-});
-
 
 test('after disconnected for a long time and a peer gets garbage-collected', function(t) {
   t.plan(1);

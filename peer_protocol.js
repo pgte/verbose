@@ -136,11 +136,11 @@ function PeerProtocol(remoteStream, options, lastMessageId, isReconnect) {
 
   e.message =
   function enqueueMessage(msg) {
+    if (ended) return;
     if (typeof msg != 'object') throw new Error('a message must be an object. ' + (typeof msg) + ' is not acceptable.');
     if (! msg._id) msg._id = uuid.v4();
     if (! msg._nodes) msg._nodes = [];
     if (msg._nodes.indexOf(peerId) > -1) return;
-    if (ended) return;
 
     msg = {
       pl: msg,
