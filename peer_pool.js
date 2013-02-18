@@ -12,6 +12,8 @@ function PeerPool(spine, opts) {
   var ended = false;
 
   var peers = [];
+  var byPeerId = {};
+  var timeouts = {};
 
   function remove(peer) {
     var idx = peers.indexOf(peer);
@@ -20,20 +22,46 @@ function PeerPool(spine, opts) {
 
   function wireup(peer) {
 
+    var peerId;
+
     /// Pipe all messages emitted by spine into this peer
-    spine.pipe(peer);
+    spine.pipe(peer, {end: false});
 
     /// Pipe all messages emitted by this peer into the spine
-    peer.pipe(spine);
+    peer.pipe(spine, {end: false});
 
     peers.forEach(function(otherPeer) {
       if (peer != otherPeer) {
-        peer.pipe(otherPeer).pipe(peer);        
+        peer.pipe(otherPeer, {end: false}).pipe(peer, {end: false});
       }
     });
 
     peer.once('end', function() {
       remove(peer);
+      if (peerId && !timeouts[peerId]) {
+        timeouts[peerId] = setTimeout(function() {
+          delete byPeerId[peerId];
+        }, options.timeout);
+      }
+    });
+
+    peer.once('peerid', function(id) {
+      peer.peerId = id;
+      var existingPeer = byPeerId[id];
+      if (existingPeer) {
+        
+        peer.lastMessageId = existingPeer.lastMessageId;
+        peer.isReconnect = true;
+        peer.takeMessages(existingPeer.pendingMessages());
+        
+        var timeout = timeouts[id];
+        if (timeout) {
+          clearTimeout(timeout)
+          delete timeouts[id];
+        }
+      }
+      byPeerId[id] = peer;
+      peerId = id;
     });
   }
 
@@ -55,6 +83,11 @@ function PeerPool(spine, opts) {
     ee.emit('ending');
     peers.forEach(function(peer) {
       peer.end();
+    });
+
+    Object.keys(timeouts).forEach(function(id) {
+      clearTimeout(timeouts[id]);
+      delete timeouts[id];
     });
   }
 

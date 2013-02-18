@@ -5,7 +5,9 @@ var slice = Array.prototype.slice;
 
 exports =
 module.exports =
-function PeerProtocol(remoteStream, options, lastMessageId, isReconnect) {
+function PeerProtocol(remoteStream, options, state) {
+
+  if (! state) state = {};
 
   var nodeId = options.node_id;
 
@@ -93,7 +95,7 @@ function PeerProtocol(remoteStream, options, lastMessageId, isReconnect) {
 
       e.emit('peerid', remotePeerId);
 
-      remoteEmitter.emit('sync', lastMessageId, isReconnect);
+      remoteEmitter.emit('sync', state.lastMessageId, state.isReconnect);
 
     });
 

@@ -9,43 +9,6 @@ var options = {
 };
 
 
-test('server peer resends missed events', function(t) {
-  t.plan(4);
-  var port = helpers.randomPort();
-  var c1 = Node(helpers.clone(options));
-  var s = Node(helpers.clone(options));
-  s.listen(port);
-
-  var reconnected = false;
-  var collected = [];
-  c1.stream.on('data', function(d) {
-    t.ok(reconnected, 'already reconnected');
-    collected.push(JSON.stringify(d));
-    if (collected.length >= 3) {
-      console.log('collected:', collected);
-      t.deepEqual(collected, ['["abc"]', '["def"]', '["ghi"]']);
-      c1.end();
-      s.end();
-    }
-  });
-
-  c1.connect(port);
-
-  c1.stream.once('initialized', function() {
-    c1.disconnect();
-    s.emit('abc');
-    s.emit('def');
-    s.emit('ghi');
-    c1.stream.once('disconnect', function() {
-      reconnected = true;
-      c1.connect(port);
-    });
-  });
-
-});
-
-return;
-
 test('server emits', function(t) {
   t.plan(1);
   var s = Node(helpers.clone(options));
@@ -55,11 +18,9 @@ test('server emits', function(t) {
   c.connect(port);
   s.listen(port);
 
-  c.stream.once('initialized', function(){
-    c.emit('event 1', 'a', 'b');
-    c.emit('event 2', 'c', 'd');
-  });
-
+  c.emit('event 1', 'a', 'b');
+  c.emit('event 2', 'c', 'd');
+  
   var collected = []; // collect data from server here
 
   s.stream.on('data', function(d) {
@@ -80,12 +41,11 @@ test('client emits', function(t) {
   var port = helpers.randomPort();
   c.connect(port);
 
-  s.listen(port, function() {
-    c.stream.on('initialized', function() {
-      s.emit('message 2.1');
-      s.emit('message 2.2');
-    });
+  c.stream.on('initialized', function() {
+    s.emit('message 2.1');
+    s.emit('message 2.2');
   });
+  s.listen(port);
 
   var collected = [];
   c.stream.on('data', function(d) {
@@ -140,8 +100,40 @@ test('several clients connected to server', function(t) {
   s.listen(port);
 });
 
-/// ---
-return;
+
+test('server peer resends missed events', function(t) {
+  t.plan(4);
+  var port = helpers.randomPort();
+  var c = Node(helpers.clone(options));
+  var s = Node(helpers.clone(options));
+  s.listen(port);
+
+  var reconnected = false;
+  var collected = [];
+  c.stream.on('data', function(d) {
+    t.ok(reconnected, 'already reconnected');
+    collected.push(JSON.stringify(d));
+    if (collected.length >= 3) {
+      t.deepEqual(collected, ['["abc"]', '["def"]', '["ghi"]']);
+      c.end();
+      s.end();
+    }
+  });
+
+  c.stream.once('initialized', function() {
+    s.emit('abc');
+    s.emit('def');
+    s.emit('ghi');
+    c.stream.once('disconnect', function() {
+      reconnected = true;
+      c.connect(port);
+    });
+    c.disconnect();
+  });
+
+  c.connect(port);
+
+});
 
 test('after disconnected for a long time and a peer gets garbage-collected', function(t) {
   t.plan(1);

@@ -43,10 +43,31 @@ function Node(options) {
   var messageHub = MessageHub(options);
 
   e.peers =
-  function peers() {
+  function() {
     return peers.list();
     return e;
   };
+
+  function wireup(peer) {
+    peers.add(peer);
+
+    propagate([
+      'initialized',
+      'connect',
+      'disconnect',
+      'backoff',
+      'reconnect'],
+      peer,
+      s);
+
+    commands.once('end', function() {
+      peer.disconnect();
+    });
+
+    commands.once('disconnect', function() {
+      peer.disconnect();
+    });
+  }
 
 
   /// Connect
@@ -55,30 +76,20 @@ function Node(options) {
   function connect(opts, callback) {
     if (ending || ended) throw new Error('Ended');
 
-    var bufferedPeer = BufferedPeer(options);
+    var peer = BufferedPeer(options);
+    peer.connect(opts);
+    wireup(peer);
 
-    bufferedPeer.connect(opts);
-
-    peers.add(bufferedPeer);
-
-    propagate([
-      'connect',
-      'disconnect',
-      'backoff',
-      'reconnect'],
-      recon,
-      s);
-
-    commands.once('end', function() {
-      bufferedPeer.disconnect();
-    });
-
-    commands.once('disconnect', function() {
-      bufferedPeer.disconnect();
-    });
-
-    return bufferedPeer;
+    return peer;
   }; 
+
+
+  /// Handle Server Connection
+
+  function handleServerConnection(stream) {
+    var peer = BufferedPeer(options, stream);
+    wireup(peer);
+  }
 
 
   /// Listen
@@ -92,13 +103,15 @@ function Node(options) {
     }
 
     var server = options.transport.listen(port, host, callback);
-    server.on('connection', handleConnection);
+    
+    server.on('connection', handleServerConnection);
+    
     server.once('listening', function() {
       s.emit('listening', port, host);
     });
     
     commands.on('end', function() {
-      server.removeListener('connection', handleConnection);
+      server.removeListener('connection', handleServerConnection);
       try {
         server.close();
       } catch(err) {

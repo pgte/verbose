@@ -46,12 +46,17 @@ function PeerStream(remoteStream, opts) {
 
     s.takeMessages =
     function takeMessages(_messages) {
-      messages = _messages;
+      if (_messages) messages = _messages;
     };
 
     s.pendingMessages =
     function pendingMessages() {
       return messages;
+    };
+
+    s.lockPendingMessages =
+    function lockPendingMessages() {
+      messages = null;
     };
 
     /// Resend since
@@ -73,7 +78,7 @@ function PeerStream(remoteStream, opts) {
 
   /// Protocol
 
-    var protocol = Protocol(remoteStream, options, s.lastMessageId, s.isReconnect);
+    var protocol = Protocol(remoteStream, options, s);
     
     function onError(err) {
       s.emit('error', err);

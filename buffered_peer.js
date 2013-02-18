@@ -1,5 +1,4 @@
 var Stream = require('stream');
-var InvertStream = require('invert-stream');
 var propagate = require('propagate');
 
 var PeerStream = require('./peer_stream');
@@ -11,21 +10,29 @@ function BufferedPeer(options, stream) {
   var peerStream;
   var recon;
 
-  var s = InvertStream();
+  var s = new Stream();
+  s.readable = true;
+  s.writable = true;
 
 
   /// Handle new connections
 
   function handleConnection(stream) {
+
     var oldPeerStream = peerStream;
     peerStream = PeerStream(stream, options);
-    
+
     /// If there is an old peer, let's hand-off the pending messages
     if (oldPeerStream) {
       peerStream.takeMessages(oldPeerStream.pendingMessages());
+      peerStream.lastMessageId = oldPeerStream.lastMessageId;
+      peerStream.isReconnect = true;
+      oldPeerStream.lockPendingMessages();
     }
 
-    peerStream.pipe(s.other, {end: false});
+    peerStream.on('data', function(d) {
+      s.emit('data', d);
+    });
 
     buffer.forEach(function(m) {
       peerStream.write(m);
@@ -33,11 +40,8 @@ function BufferedPeer(options, stream) {
     buffer = [];
 
     propagate([
-      'connect',
-      'disconnect',
-      'backoff',
-      'reconnect',
       'initialized',
+      'peerid',
       'acknowledge'],
       peerStream, s);
 
@@ -52,20 +56,29 @@ function BufferedPeer(options, stream) {
 
   s.connect =
   function connect(opts, callback) {
+    if (recon) throw new Error('Already trying to connect');
     recon = options.transport.connect(opts, handleConnection, callback);
+
+    propagate([
+      'connect',
+      'disconnect',
+      'backoff',
+      'reconnect'],
+      recon, s);
+
   };
   
 
   /// Disconnect
 
+  s.end =
   s.disconnect =
   function disconnect() {
-    console.log('disconnecting...');
-    if (recon) recon.reconnect = false;
     if (peerStream) {
       peerStream.once('end', function() {
         s.emit('end');
       });
+      if (recon) recon.reconnect = false;
       peerStream.end();
     } else {
       s.emit('end');
@@ -84,6 +97,41 @@ function BufferedPeer(options, stream) {
       return peerStream.write(b);
     }
   };
+
+
+  /// Take Messages
+
+  s.takeMessages =
+  function takeMessages(m) {
+    if (! peerStream) throw new Error('No peer stream');
+    return peerStream.takeMessages(m);
+  };
+
+
+  /// Pending Messages
+
+  s.pendingMessages =
+  function pendingMesages() {
+    if (! peerStream) return null;
+    return peerStream.pendingMessages();
+  };
+
+
+  /// lastMessageId
+  
+  s.__defineSetter__('lastMessageId', function(lastMessageId) {
+    if (! peerStream) throw new Error('no peer stream');
+    peerStream.lastMessageId = lastMessageId;
+  });
+
+
+  /// isReconnect
+  
+  s.__defineSetter__('isReconnect', function(isReconnect) {
+    if (! peerStream) throw new Error('no peer stream');
+    peerStream.isReconnect = isReconnect;
+  });
+
 
 
   /// Already connected?
