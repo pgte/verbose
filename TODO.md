@@ -1,6 +1,9 @@
-
-* Simulate timeouts and ensure no listeners leak after reconnected
-* domain.dispose()
-* pluggable transports (TLS)
-* latency measurements
-* acknowledge timeout only when an acknowledge is due (peer_stream.js:230)
+* Technical debt:
+  * check the need for doing domain.dispose()
+* Improvements:
+  * More transports (TLS, 0mq, ...)
+  * Disconnect
+  * Runtime configurability and querying, which leads me to:
+  * Observability
+    * latency measurements
+    * queue size
