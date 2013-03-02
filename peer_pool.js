@@ -22,6 +22,8 @@ function PeerPool(spine, opts) {
 
   function wireup(peer) {
 
+    peer.setMaxListeners(options.maxPeers * 2);
+
     var peerId;
 
     /// Pipe all messages emitted by spine into this peer
@@ -32,7 +34,10 @@ function PeerPool(spine, opts) {
 
     peers.forEach(function(otherPeer) {
       if (peer != otherPeer) {
-        peer.pipe(otherPeer, {end: false}).pipe(peer, {end: false});
+        peer.
+          pipe(otherPeer, {end: false});
+        otherPeer.
+          pipe(peer, {end: false});
       }
     });
 
@@ -53,6 +58,7 @@ function PeerPool(spine, opts) {
         peer.lastMessageId = existingPeer.lastMessageId;
         peer.isReconnect = true;
         peer.takeMessages(existingPeer.pendingMessages());
+        existingPeer.end();
         
         var timeout = timeouts[id];
         if (timeout) {

@@ -3,11 +3,12 @@ var Transport = require('./transport');
 
 var defaults =
 {
-  timeout : 5e3,
+  timeout : 60e3, // 60 seconds
   bufferTimeout: 15 * 60 * 1e3, // 15 minutes
   bufferMax: 1000,
   acknowledgeInterval: 1e3,
-  channel: 'DEFAULT_CHANNEL'
+  channel: 'DEFAULT_CHANNEL',
+  maxPeers: 1000
 };
 
 function merge(a, b) {

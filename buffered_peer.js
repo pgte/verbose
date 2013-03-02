@@ -42,7 +42,8 @@ function BufferedPeer(options, stream) {
     propagate([
       'initialized',
       'peerid',
-      'acknowledge'],
+      'acknowledge',
+      'end'],
       peerStream, s);
 
     /// Hand-off all the errors from stream
@@ -94,6 +95,7 @@ function BufferedPeer(options, stream) {
       buffer.push(b);
       return true;
     } else {
+      console.log('writing to peer stream', b);
       return peerStream.write(b);
     }
   };
