@@ -35,6 +35,7 @@ Here are the options:
 | bufferMax           | maximum number of buffered messages kept by peer  | 1000        |
 | acknowledgeInterval | message acknowledge interva (ms)                  | 1000        |
 | maxPeers            | message acknowledge interva (ms)                  | 1000        |
+| transport           | transport name or object. If object, must provide a `listen` and a `connect` methods. See [example](https://github.com/pgte/verbose/blob/master/transport/tcp.js)                | "tcp"        |
 
 ## Make it listen
 
