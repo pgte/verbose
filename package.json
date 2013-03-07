@@ -8,7 +8,7 @@
   ],
  "repository" : {
     "type" : "git",
-    "url" : "http://github.com/pgte/emitter-node.git"
+    "url" : "https://github.com/pgte/verbose.git"
   },
   "bugs" : {
     "url" : "http://github.com/pgte/verbose/issues"
