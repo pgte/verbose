@@ -7,6 +7,7 @@ Distributed event bus
 * Automatic reconnect with back-off
 * Reconnect resilience: messages get buffered for retransmission if necessary
 * Create any topology of nodes
+* Pluggale transport
 
 ## Create a Node
 
