@@ -1,7 +1,7 @@
 {
   "name": "verbose",
   "description": "Distributed Event Bus",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "author" : "Pedro Teixeira <pedro.teixeira@gmail.com>",
   "contributors" : [
     {"name": "Pedro Teixeira"}
